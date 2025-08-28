@@ -59,9 +59,17 @@ jobs:
         run: |
           echo "Current directory: $(pwd)"
           echo "Listing frontend directory:"
-          ls -la frontend/
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            dir frontend
+          else
+            ls -la frontend/
+          fi
           echo "Checking if package-lock.json exists:"
-          test -f frontend/package-lock.json && echo "package-lock.json exists" || echo "package-lock.json NOT found"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            if exist frontend\package-lock.json (echo "package-lock.json exists") else (echo "package-lock.json NOT found")
+          else
+            test -f frontend/package-lock.json && echo "package-lock.json exists" || echo "package-lock.json NOT found"
+          fi
 
       - name: Install frontend dependencies
         working-directory: frontend
