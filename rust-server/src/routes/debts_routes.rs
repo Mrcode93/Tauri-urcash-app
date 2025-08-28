@@ -1,20 +1,17 @@
 use axum::{
     routing::{get, post, put, delete},
     Router,
-    extract::{State, Path, Json, Query},
+    extract::{State, Path, Query},
     response::IntoResponse,
-    http::StatusCode,
+    Json,
 };
-use crate::database::Database;
-use crate::models::{
-    debt::*,
-    ApiResponse,
-    PaginationInfo,
-    PaginatedResponse
-};
-use crate::services::debt_service::DebtService;
-use tracing::{info, error};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use crate::AppState;
+use crate::models::{
+    DebtQuery, UpdateDebtRequest, RepayDebtRequest, RepayDebtLegacyRequest
+};
+use tracing::{info, warn, error};
 
 // Get all debts
 async fn get_all_debts(

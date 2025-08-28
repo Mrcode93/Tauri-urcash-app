@@ -50,33 +50,15 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      - name: Setup Node.js
+      - name: Sync node version and setup cache
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-
-      - name: Verify package-lock.json exists (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Listing frontend directory:"
-          ls -la frontend/
-          echo "Checking if package-lock.json exists:"
-          test -f frontend/package-lock.json && echo "package-lock.json exists" || echo "package-lock.json NOT found"
-
-      - name: Verify package-lock.json exists (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          echo Current directory: %cd%
-          echo Listing frontend directory:
-          dir frontend
-          echo Checking if package-lock.json exists:
-          if exist frontend\package-lock.json (echo package-lock.json exists) else (echo package-lock.json NOT found)
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
+        run: cd frontend && npm ci
 
       - name: Build rust-server for target platform
         run: |
@@ -94,7 +76,7 @@ jobs:
           fi
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version 2.0.0-rc
+        run: cargo install tauri-cli --version ^2.0.0
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0

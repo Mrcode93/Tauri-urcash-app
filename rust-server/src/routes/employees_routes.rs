@@ -1,20 +1,16 @@
 use axum::{
     routing::{get, post, put, delete},
     Router,
-    extract::{State, Path, Json, Query},
+    extract::{State, Path, Query},
     response::IntoResponse,
-    http::StatusCode,
+    Json,
 };
-use crate::database::Database;
-use crate::models::{
-    employee::*,
-    ApiResponse,
-    PaginationInfo,
-    PaginatedResponse
-};
-use crate::services::employee_service::EmployeeService;
-use tracing::{info, error};
 use serde_json::json;
+use crate::AppState;
+use crate::models::{
+    EmployeeQuery, CreateEmployeeRequest, UpdateEmployeeRequest, CalculateCommissionRequest
+};
+use tracing::{info, warn, error};
 
 // Get all employees
 async fn get_all_employees(

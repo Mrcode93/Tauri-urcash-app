@@ -5,8 +5,8 @@ use crate::models::{
     ProductListResponse, ProductWithDetails, ProductSearchResponse, 
     UpdateStockRequest, LowStockProduct
 };
-use sqlx::Row;
-use tracing::info;
+use sqlx::{Row, SqlitePool};
+use tracing::{info, warn, error};
 use chrono::{Utc, DateTime, NaiveDate, NaiveDateTime};
 use serde_json::Value;
 
@@ -557,34 +557,41 @@ impl ProductService {
     }
 
     // Delete product
-    pub async fn delete(&self, db: &Database, id: i64) -> Result<Value, anyhow::Error> {
+    pub async fn delete(&self, db: &Database, id: i64) -> Result<Value> {
         // Check if product exists
         let product = self.get_by_id(db, id).await?;
         if product.is_none() {
-            return Ok(serde_json::json!({
-                "success": false,
-                "message": "المنتج غير موجود"
-            }));
+            return Err(anyhow::anyhow!("المنتج غير موجود"));
         }
 
-        // Delete product
-        let deleted = sqlx::query("DELETE FROM products WHERE id = ?")
+        // Check for associated purchase or sale items
+        let purchase_items = sqlx::query("SELECT id FROM purchase_items WHERE product_id = ?")
+            .bind(id)
+            .fetch_all(&db.pool)
+            .await?;
+
+        let sale_items = sqlx::query("SELECT id FROM sale_items WHERE product_id = ?")
+            .bind(id)
+            .fetch_all(&db.pool)
+            .await?;
+
+        if !purchase_items.is_empty() || !sale_items.is_empty() {
+            return Err(anyhow::anyhow!("لا يمكن حذف المنتج لوجود سجلات مشتريات أو مبيعات مرتبطة به"));
+        }
+
+        let changes = sqlx::query("DELETE FROM products WHERE id = ?")
             .bind(id)
             .execute(&db.pool)
             .await?;
 
-        if deleted.rows_affected() > 0 {
-            info!("Product deleted successfully: {}", id);
-            Ok(serde_json::json!({
-                "success": true,
-                "message": "تم حذف المنتج بنجاح"
-            }))
-        } else {
-            Ok(serde_json::json!({
-                "success": false,
-                "message": "فشل في حذف المنتج"
-            }))
+        if changes.rows_affected() == 0 {
+            return Err(anyhow::anyhow!("فشل في حذف المنتج"));
         }
+
+        Ok(serde_json::json!({
+            "id": id,
+            "deleted": true
+        }))
     }
 
     // Search products

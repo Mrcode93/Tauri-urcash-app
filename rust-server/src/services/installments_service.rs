@@ -1,14 +1,15 @@
 use anyhow::Result;
 use crate::database::Database;
 use crate::models::{
-    Installment, CreateInstallmentRequest, UpdateInstallmentRequest, InstallmentQuery, InstallmentFilters,
-    InstallmentListResponse, ApiResponse, PaginatedResponse, CreateInstallmentPlanRequest, InstallmentPaymentRequest
+    Installment, InstallmentQuery, CreateInstallmentRequest, UpdateInstallmentRequest, 
+    InstallmentPaymentRequest, CreateInstallmentPlanRequest, InstallmentListResponse,
+    InstallmentWithDetails, InstallmentGroupedBySale, InstallmentSummary, 
+    InstallmentPlan, InstallmentPlanResponse, PaymentRecordResponse, PaymentRecord
 };
-use sqlx::Row;
-use chrono::{Utc, DateTime};
-use crate::models::PaginationInfo;
+use sqlx::{Row, SqlitePool};
+use tracing::{info, warn, error};
+use chrono::{Utc, DateTime, NaiveDate, NaiveDateTime};
 use serde_json::Value;
-use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct InstallmentsService;
@@ -355,7 +356,7 @@ impl InstallmentsService {
     }
 
     // Delete installment
-    pub async fn delete(&self, db: &Database, id: i64) -> Result<Value, anyhow::Error> {
+    pub async fn delete(&self, db: &Database, id: i64) -> Result<Value> {
         // Check if installment exists
         let installment = self.get_by_id(db, id).await?;
         if installment.is_none() {
@@ -448,18 +449,68 @@ impl InstallmentsService {
     }
 
     // Get installments grouped by sale
-    pub async fn get_grouped_by_sale(&self, db: &Database, query: &InstallmentQuery) -> Result<Value, anyhow::Error> {
-        let installments = self.get_all(db, query).await?;
-        
-        // Group installments by sale_id
-        let mut grouped: HashMap<i64, Vec<Installment>> = HashMap::new();
-        for installment in installments.items {
-            grouped.entry(installment.sale_id).or_insert_with(Vec::new).push(installment);
+    pub async fn get_grouped_by_sale(&self, db: &Database, query: &InstallmentQuery) -> Result<Value> {
+        let mut where_conditions = vec!["1=1".to_string()];
+        let mut query_params: Vec<String> = vec![];
+
+        if let Some(customer_id) = query.customer_id {
+            where_conditions.push("i.customer_id = ?".to_string());
+            query_params.push(customer_id.to_string());
         }
-        
+
+        if let Some(ref payment_status) = query.payment_status {
+            where_conditions.push("i.payment_status = ?".to_string());
+            query_params.push(payment_status.clone());
+        }
+
+        let where_clause = where_conditions.join(" AND ");
+
+        let query_str = format!(
+            r#"
+            SELECT 
+                i.*, c.name as customer_name, c.phone as customer_phone,
+                s.invoice_no, s.total_amount as sale_total, s.paid_amount as sale_paid_amount
+            FROM installments i
+            LEFT JOIN customers c ON i.customer_id = c.id
+            LEFT JOIN sales s ON i.sale_id = s.id
+            WHERE {}
+            ORDER BY s.created_at DESC, i.due_date ASC
+            "#,
+            where_clause
+        );
+
+        let mut query_builder = sqlx::query(&query_str);
+        for param in &query_params {
+            query_builder = query_builder.bind(param);
+        }
+
+        let installments = query_builder
+            .fetch_all(&db.pool)
+            .await?
+            .into_iter()
+            .map(|row| InstallmentWithDetails {
+                id: row.get("id"),
+                sale_id: row.get("sale_id"),
+                customer_id: row.get("customer_id"),
+                due_date: row.get("due_date"),
+                amount: row.get("amount"),
+                paid_amount: row.get("paid_amount"),
+                payment_status: row.get("payment_status"),
+                payment_method: row.get("payment_method"),
+                paid_at: row.get("paid_at"),
+                notes: row.get("notes"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+                invoice_no: row.get("invoice_no"),
+                customer_name: row.get("customer_name"),
+                customer_phone: row.get("customer_phone"),
+            })
+            .collect();
+
+        let grouped = self.group_installments_by_sale(installments);
+
         Ok(serde_json::json!({
-            "grouped_installments": grouped,
-            "total_groups": grouped.len()
+            "installments": grouped
         }))
     }
 
@@ -677,53 +728,53 @@ impl InstallmentsService {
     }
 
     // Legacy method aliases for compatibility
-    pub async fn get_by_sale(&self, db: &Database, sale_id: i64, _query: &InstallmentQuery) -> Result<Value, anyhow::Error> {
+    pub async fn get_by_sale(&self, db: &Database, sale_id: i64, _query: &InstallmentQuery) -> Result<Value> {
         let installments = self.get_by_sale_id(db, sale_id).await?;
         Ok(serde_json::json!({
             "installments": installments
         }))
     }
 
-    pub async fn get_by_customer(&self, db: &Database, customer_id: i64, _query: &InstallmentQuery) -> Result<Value, anyhow::Error> {
+    pub async fn get_by_customer(&self, db: &Database, customer_id: i64, _query: &InstallmentQuery) -> Result<Value> {
         let installments = self.get_by_customer_id(db, customer_id).await?;
         Ok(serde_json::json!({
             "installments": installments
         }))
     }
 
-    pub async fn create_plan(&self, db: &Database, payload: CreateInstallmentPlanRequest) -> Result<Value, anyhow::Error> {
+    pub async fn create_plan(&self, db: &Database, payload: CreateInstallmentPlanRequest) -> Result<Value> {
         let result = self.create_installment_plan(db, payload).await?;
         Ok(serde_json::json!(result))
     }
 
-    pub async fn record_installment_payment(&self, db: &Database, id: i64, payload: InstallmentPaymentRequest) -> Result<Value, anyhow::Error> {
+    pub async fn record_installment_payment(&self, db: &Database, id: i64, payload: InstallmentPaymentRequest) -> Result<Value> {
         let result = self.record_payment(db, id, payload).await?;
         Ok(serde_json::json!(result))
     }
 
-    pub async fn update_installment(&self, db: &Database, id: i64, payload: UpdateInstallmentRequest) -> Result<Value, anyhow::Error> {
+    pub async fn update_installment(&self, db: &Database, id: i64, payload: UpdateInstallmentRequest) -> Result<Value> {
         let result = self.update(db, id, payload).await?;
         Ok(serde_json::json!(result))
     }
 
-    pub async fn delete_installment(&self, db: &Database, id: i64) -> Result<(), anyhow::Error> {
+    pub async fn delete_installment(&self, db: &Database, id: i64) -> Result<()> {
         self.delete(db, id).await?;
         Ok(())
     }
 
-    pub async fn get_overdue_installments(&self, db: &Database, query: &InstallmentQuery) -> Result<Value, anyhow::Error> {
+    pub async fn get_overdue_installments(&self, db: &Database, query: &InstallmentQuery) -> Result<Value> {
         let result = self.get_overdue(db, query).await?;
         Ok(serde_json::json!(result))
     }
 
-    pub async fn get_customer_installments(&self, db: &Database, customer_id: i64, query: &InstallmentQuery) -> Result<Value, anyhow::Error> {
+    pub async fn get_customer_installments(&self, db: &Database, customer_id: i64, query: &InstallmentQuery) -> Result<Value> {
         let installments = self.get_by_customer_id(db, customer_id).await?;
         Ok(serde_json::json!({
             "installments": installments
         }))
     }
 
-    pub async fn get_installment_summary(&self, db: &Database) -> Result<Value, anyhow::Error> {
+    pub async fn get_installment_summary(&self, db: &Database) -> Result<Value> {
         let query = InstallmentQuery::default();
         let result = self.get_summary(db, &query).await?;
         Ok(serde_json::json!(result))

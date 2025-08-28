@@ -1,20 +1,16 @@
 use axum::{
     routing::{get, post, put, delete},
     Router,
-    extract::{State, Path, Json, Query},
+    extract::{State, Path, Query},
     response::IntoResponse,
-    http::StatusCode,
+    Json,
 };
-use crate::database::Database;
-use crate::models::{
-    purchase::*,
-    ApiResponse,
-    PaginationInfo,
-    PaginatedResponse
-};
-use crate::services::purchase_service::PurchaseService;
-use tracing::{info, error};
 use serde_json::json;
+use crate::AppState;
+use crate::models::{
+    CreatePurchaseRequest, UpdatePurchaseRequest, PurchaseReturnRequest
+};
+use tracing::{info, warn, error};
 
 // Get all purchases
 async fn get_all_purchases(

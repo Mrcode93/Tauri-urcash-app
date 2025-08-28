@@ -1,14 +1,15 @@
 use anyhow::Result;
 use crate::database::Database;
 use crate::models::{
-    database::*,
-    ApiResponse,
-    PaginatedResponse
+    BackupInfo, CreateBackupResponse, RestoreBackupResponse, DatabaseResetResponse,
+    FixMenuItemsResponse, get_database_message
 };
-use sqlx::{Row, SqlitePool};
-use tracing::{info, warn, error};
+use std::fs;
+use std::path::{Path, PathBuf};
 use chrono::{Utc, DateTime};
-use crate::models::PaginationInfo;
+use tracing::{info, warn, error};
+use dirs;
+use sqlx::Row;
 
 const MAX_BACKUPS: usize = 5;
 
@@ -21,28 +22,28 @@ impl DatabaseService {
     }
 
     // Get backup directory path
-    fn get_backup_dir(&self) -> Result<std::path::PathBuf> {
+    fn get_backup_dir(&self) -> Result<PathBuf> {
         let home_dir = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
         let backup_dir = home_dir.join(".urcash").join("backups");
         
         // Ensure backup directory exists
         if !backup_dir.exists() {
-            std::fs::create_dir_all(&backup_dir)?;
+            fs::create_dir_all(&backup_dir)?;
         }
         
         Ok(backup_dir)
     }
 
     // Get database path
-    fn get_database_path(&self) -> Result<std::path::PathBuf> {
+    fn get_database_path(&self) -> Result<PathBuf> {
         let home_dir = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
         Ok(home_dir.join(".urcash").join("database.sqlite"))
     }
 
     // Validate SQLite database file
-    async fn validate_sqlite_database(&self, file_path: &std::path::Path) -> Result<bool> {
+    async fn validate_sqlite_database(&self, file_path: &Path) -> Result<bool> {
         // Check if file exists
         if !file_path.exists() {
             error!("File does not exist: {:?}", file_path);
@@ -50,7 +51,7 @@ impl DatabaseService {
         }
 
         // Check file size (SQLite files should be at least 512 bytes)
-        let metadata = std::fs::metadata(file_path)?;
+        let metadata = fs::metadata(file_path)?;
         if metadata.len() < 512 {
             error!("File is too small to be a valid SQLite database: {:?}, Size: {}", file_path, metadata.len());
             return Ok(false);
@@ -101,12 +102,12 @@ impl DatabaseService {
             return Ok(backups);
         }
         
-        for entry in std::fs::read_dir(backup_dir)? {
+        for entry in fs::read_dir(backup_dir)? {
             let entry = entry?;
             let path = entry.path();
             
             if path.extension().and_then(|s| s.to_str()) == Some("db") {
-                let metadata = std::fs::metadata(&path)?;
+                let metadata = fs::metadata(&path)?;
                 let created_at = DateTime::from_timestamp(
                     metadata.created()?.duration_since(std::time::UNIX_EPOCH)?.as_secs() as i64,
                     0
@@ -133,9 +134,9 @@ impl DatabaseService {
         
         // Use custom directory if provided, otherwise use default
         let backup_dir = if let Some(ref custom_dir) = custom_directory {
-            let path = std::path::PathBuf::from(custom_dir);
+            let path = PathBuf::from(custom_dir);
             if !path.exists() {
-                std::fs::create_dir_all(&path)?;
+                fs::create_dir_all(&path)?;
             }
             path
         } else {
@@ -158,7 +159,7 @@ impl DatabaseService {
 
         // Create backup by copying the database file
         let db_path = self.get_database_path()?;
-        std::fs::copy(&db_path, &backup_path)?;
+        fs::copy(&db_path, &backup_path)?;
 
         // Get updated backup count after creation (only from default directory for cleanup)
         let updated_backups = if custom_directory.is_none() {
@@ -171,7 +172,7 @@ impl DatabaseService {
         if custom_directory.is_none() && updated_backups.len() > MAX_BACKUPS {
             let backups_to_delete = &updated_backups[MAX_BACKUPS..];
             for backup in backups_to_delete {
-                match std::fs::remove_file(&backup.path) {
+                match fs::remove_file(&backup.path) {
                     Ok(_) => info!("Deleted old backup: {}", backup.name),
                     Err(e) => warn!("Failed to delete old backup {}: {}", backup.name, e),
                 }
@@ -233,12 +234,12 @@ impl DatabaseService {
         // Delete current database file
         let db_path = self.get_database_path()?;
         if db_path.exists() {
-            std::fs::remove_file(&db_path)?;
+            fs::remove_file(&db_path)?;
             info!("Current database file deleted successfully");
         }
 
         // Copy backup to database location
-        std::fs::copy(&backup_path, &db_path)?;
+        fs::copy(&backup_path, &db_path)?;
         info!("Backup file copied to database location");
 
         // Note: Database reconnection will be handled by the calling code
@@ -251,7 +252,7 @@ impl DatabaseService {
 
     // Restore from custom backup
     pub async fn restore_from_custom_backup(&self, db: &Database, backup_file: &str) -> Result<RestoreBackupResponse> {
-        let backup_path = std::path::PathBuf::from(backup_file);
+        let backup_path = PathBuf::from(backup_file);
 
         info!("Attempting to restore from custom backup: {:?}", backup_path);
 
@@ -279,12 +280,12 @@ impl DatabaseService {
         // Delete current database file
         let db_path = self.get_database_path()?;
         if db_path.exists() {
-            std::fs::remove_file(&db_path)?;
+            fs::remove_file(&db_path)?;
             info!("Current database file deleted successfully");
         }
 
         // Copy backup to database location
-        std::fs::copy(&backup_path, &db_path)?;
+        fs::copy(&backup_path, &db_path)?;
         info!("Custom backup file copied to database location");
 
         // Note: Database reconnection will be handled by the calling code
@@ -306,7 +307,7 @@ impl DatabaseService {
         // Delete the database file if it exists
         let db_path = self.get_database_path()?;
         if db_path.exists() {
-            std::fs::remove_file(&db_path)?;
+            fs::remove_file(&db_path)?;
             info!("Database file deleted for reset");
         }
 

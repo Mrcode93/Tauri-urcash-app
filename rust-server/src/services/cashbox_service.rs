@@ -1,13 +1,17 @@
-use anyhow::Result;
 use crate::database::Database;
 use crate::models::{
-    cashbox::*,
-    ApiResponse,
-    PaginatedResponse
+    ApiResponse, CashBox, CashBoxTransaction, UserCashBoxSettings, CashBoxSummary,
+    CashBoxWithMoneyBoxSummary, CashBoxIntegration, CashBoxReport, CashBoxReportSummary,
+    ComprehensiveCashBoxReport, ComprehensiveReportSummary, MoneyBox, MoneyBoxTransaction,
+    OpenCashBoxRequest, CloseCashBoxRequest, AddTransactionRequest, ManualTransactionRequest,
+    UpdateCashBoxSettingsRequest, ForceCloseCashBoxRequest, TransferToMoneyBoxRequest,
+    CashBoxTransactionsQuery, CashBoxHistoryQuery, CashBoxReportQuery,
+    TRANSACTION_TYPES, REFERENCE_TYPES, CASH_BOX_STATUSES
 };
-use sqlx::Row;
+use anyhow::Result;
 use chrono::{Utc, DateTime};
-use crate::models::PaginationInfo;
+use sqlx::{Row, SqlitePool};
+use tracing::{info, warn, error};
 
 #[derive(Clone)]
 pub struct CashBoxService;

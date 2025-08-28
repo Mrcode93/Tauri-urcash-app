@@ -1,18 +1,18 @@
 use anyhow::Result;
 use crate::database::Database;
-use crate::models::{
-    Delegate, CreateDelegateRequest, UpdateDelegateRequest, DelegateQuery, DelegateFilters,
-    DelegateListResponse, ApiResponse, PaginatedResponse
-};
-use sqlx::Row;
-use chrono::{Utc, DateTime};
-use crate::models::PaginationInfo;
 use crate::models::delegate::{
-    DelegateSale, DelegateCollection, DelegateCommission, DelegatePerformance,
+    Delegate, DelegateSale, DelegateCollection, DelegateCommission, DelegatePerformance,
+    DelegateQuery, CreateDelegateRequest, UpdateDelegateRequest, CreateDelegateSaleRequest,
     DelegateSalesQuery, CreateDelegateCollectionRequest, AssignCustomerRequest,
-    BulkAssignCustomersRequest, CommissionQuery, PayCommissionRequest, DelegateCustomersQuery,
+    BulkAssignCustomersRequest, CommissionQuery, PayCommissionRequest, DelegateListResponse,
+    DelegateDashboard, DelegateAnalytics, CommissionHistoryQuery, DashboardQuery,
+    TopDelegatesQuery, PerformanceQuery, SetTargetsRequest, DelegateCustomersQuery,
     CreateCommissionPaymentRequest, GeneratePerformanceReportRequest
 };
+use crate::models::PaginationInfo;
+use sqlx::{Row, SqlitePool};
+use tracing::{info, warn, error};
+use chrono::{Utc, DateTime, NaiveDate, NaiveDateTime};
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -680,8 +680,8 @@ impl DelegatesService {
             "sales_target": row.get::<f64, _>("sales_target"),
             "is_active": row.get::<i64, _>("is_active") == 1,
             "notes": row.get::<Option<String>, _>("notes"),
-            "created_at": row.get::<chrono::NaiveDateTime, _>("created_at"),
-            "updated_at": row.get::<chrono::NaiveDateTime, _>("updated_at")
+            "created_at": row.get::<NaiveDateTime, _>("created_at"),
+            "updated_at": row.get::<NaiveDateTime, _>("updated_at")
         }));
 
         Ok(serde_json::json!({
@@ -746,16 +746,16 @@ impl DelegatesService {
             .map(|row| serde_json::json!({
                 "id": row.get::<i64, _>("id"),
                 "delegate_id": row.get::<i64, _>("delegate_id"),
-                "period_start": row.get::<chrono::NaiveDate, _>("period_start"),
-                "period_end": row.get::<chrono::NaiveDate, _>("period_end"),
+                "period_start": row.get::<NaiveDate, _>("period_start"),
+                "period_end": row.get::<NaiveDate, _>("period_end"),
                 "total_sales": row.get::<f64, _>("total_sales"),
                 "total_commission": row.get::<f64, _>("total_commission"),
                 "payment_amount": row.get::<f64, _>("payment_amount"),
-                "payment_date": row.get::<chrono::NaiveDate, _>("payment_date"),
+                "payment_date": row.get::<NaiveDate, _>("payment_date"),
                 "payment_method": row.get::<Option<String>, _>("payment_method"),
                 "notes": row.get::<Option<String>, _>("notes"),
-                "created_at": row.get::<chrono::NaiveDateTime, _>("created_at"),
-                "updated_at": row.get::<chrono::NaiveDateTime, _>("updated_at")
+                "created_at": row.get::<NaiveDateTime, _>("created_at"),
+                "updated_at": row.get::<NaiveDateTime, _>("updated_at")
             }))
             .collect();
 

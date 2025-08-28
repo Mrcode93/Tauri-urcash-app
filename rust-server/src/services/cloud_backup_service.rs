@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use serde_json::json;
 use std::path::Path;
 use std::fs;
-use tracing::{info, error};
+use tracing::{info, warn, error};
 use uuid::Uuid;
 use sqlx::Row;
 use reqwest::Client;

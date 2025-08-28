@@ -6,8 +6,8 @@ use crate::models::{
     CustomerBill, CustomerReceipt, CustomerFinancialSummary, CustomerSale, CustomerSaleItem,
     ApiResponse, PaginatedResponse, CustomerSaleDebt
 };
-use sqlx::Row;
-use tracing::{info, warn};
+use sqlx::{Row, SqlitePool};
+use tracing::{info, warn, error};
 use chrono::{Utc, DateTime};
 use crate::models::PaginationInfo;
 

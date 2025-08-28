@@ -1,13 +1,9 @@
 use anyhow::Result;
 use crate::database::Database;
-use crate::models::{
-    report::*,
-    ApiResponse,
-    PaginatedResponse
-};
-use sqlx::Row;
-use chrono::{Utc, DateTime, NaiveDate, Datelike};
-use crate::models::PaginationInfo;
+use crate::models::report::*;
+use sqlx::{Row, SqlitePool};
+use tracing::{info, warn, error};
+use chrono::{Utc, DateTime, NaiveDate, NaiveDateTime, Datelike};
 use serde_json::Value;
 use std::collections::HashMap;
 

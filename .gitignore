@@ -167,7 +167,7 @@ build/
 dist/
 
 # Lock files (optional - you may want to keep these)
-# package-lock.json  # Keep this for CI/CD
+package-lock.json
 yarn.lock
 bun.lockb
 

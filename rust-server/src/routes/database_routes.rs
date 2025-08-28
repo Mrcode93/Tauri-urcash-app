@@ -1,20 +1,17 @@
 use axum::{
-    routing::{get, post, delete},
+    routing::{get, post},
     Router,
-    extract::{State, Path, Json, Query},
+    extract::{State, Path},
     response::IntoResponse,
-    http::StatusCode,
+    Json,
 };
-use crate::database::Database;
-use crate::models::{
-    database::*,
-    ApiResponse,
-    PaginationInfo,
-    PaginatedResponse
-};
-use crate::services::database_service::DatabaseService;
-use tracing::{info, error};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use crate::AppState;
+use crate::models::{
+    CreateBackupRequest, RestoreBackupRequest, get_database_message
+};
+use tracing::{info, warn, error};
 
 // Create database backup
 async fn create_backup(

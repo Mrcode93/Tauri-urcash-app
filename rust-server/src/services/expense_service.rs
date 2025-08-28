@@ -1,13 +1,15 @@
 use anyhow::Result;
 use crate::database::Database;
 use crate::models::{
-    expense::*,
-    ApiResponse,
-    PaginatedResponse
+    Expense, ExpenseQuery, CreateExpenseRequest, UpdateExpenseRequest, 
+    ExpenseListResponse, ExpenseTotalByCategory, 
+    ExpenseTotalByDateRange, DateRangeQuery
 };
-use sqlx::Row;
-use chrono::{Utc, DateTime};
 use crate::models::PaginationInfo;
+use sqlx::{Row, SqlitePool};
+use tracing::{info, warn, error};
+use chrono::{Utc, DateTime, NaiveDate};
+use serde_json::Value;
 
 #[derive(Clone)]
 pub struct ExpenseService;

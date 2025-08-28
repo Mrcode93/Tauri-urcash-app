@@ -17,7 +17,7 @@ use axum::{
 };
 use serde_json::json;
 use sqlx::Row;
-use tracing::{info, error};
+use tracing::{info, warn, error};
 
 // ==================== CASH BOX OPERATIONS ====================
 
