@@ -4,7 +4,7 @@ use crate::models::{
     Delegate, CreateDelegateRequest, UpdateDelegateRequest, DelegateQuery, DelegateFilters,
     DelegateListResponse, ApiResponse, PaginatedResponse
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use chrono::{Utc, DateTime};
 use crate::models::PaginationInfo;
 use crate::models::delegate::{

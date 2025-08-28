@@ -3,7 +3,7 @@ use dirs::home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {

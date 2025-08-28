@@ -7,8 +7,8 @@ use crate::models::{
     PurchaseWarning, CreditStatus
 };
 use crate::models::bill::{PurchaseReturn, PurchaseReturnItem};
-use sqlx::{Row, SqlitePool};
-use tracing::{info, warn, error};
+use sqlx::Row;
+use tracing::{info, warn};
 use chrono::{Utc, DateTime, NaiveDate, NaiveDateTime};
 use serde_json::Value;
 use std::collections::HashMap;

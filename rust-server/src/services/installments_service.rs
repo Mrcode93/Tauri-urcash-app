@@ -4,7 +4,7 @@ use crate::models::{
     Installment, CreateInstallmentRequest, UpdateInstallmentRequest, InstallmentQuery, InstallmentFilters,
     InstallmentListResponse, ApiResponse, PaginatedResponse
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use chrono::{Utc, DateTime};
 use crate::models::PaginationInfo;
 use serde_json::Value;

@@ -10,7 +10,7 @@ use crate::models::bill::{
 use anyhow::Result;
 use chrono::{Utc, DateTime};
 use sqlx::Row;
-use tracing::{info, warn, error};
+use tracing::info;
 use uuid::Uuid;
 
 #[derive(Clone)]

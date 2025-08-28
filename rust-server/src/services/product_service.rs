@@ -5,8 +5,8 @@ use crate::models::{
     ProductListResponse, ProductWithDetails, ProductSearchResponse, 
     UpdateStockRequest, LowStockProduct
 };
-use sqlx::{Row, SqlitePool};
-use tracing::{info, warn, error};
+use sqlx::Row;
+use tracing::info;
 use chrono::{Utc, DateTime, NaiveDate, NaiveDateTime};
 use serde_json::Value;
 

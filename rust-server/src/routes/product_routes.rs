@@ -13,6 +13,7 @@ use crate::models::{
     PaginatedResponse
 };
 use crate::services::product_service::ProductService;
+use crate::AppState;
 use tracing::{info, error};
 use serde_json::json;
 

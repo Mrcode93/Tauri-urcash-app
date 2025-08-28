@@ -4,7 +4,7 @@ use crate::models::{
     StockMovement, CreateStockMovementRequest, UpdateStockMovementRequest, StockMovementQuery, StockMovementFilters,
     StockMovementListResponse, ApiResponse, PaginatedResponse
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use tracing::info;
 use chrono::{Utc, DateTime};
 use crate::models::PaginationInfo;

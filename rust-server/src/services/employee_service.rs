@@ -4,7 +4,7 @@ use crate::models::{
     Employee, CreateEmployeeRequest, UpdateEmployeeRequest, EmployeeQuery, EmployeeFilters,
     EmployeeListResponse, ApiResponse, PaginatedResponse
 };
-use sqlx::{Row, SqlitePool};
+use sqlx::Row;
 use chrono::{Utc, DateTime};
 use crate::models::PaginationInfo;
 use serde_json::Value;
