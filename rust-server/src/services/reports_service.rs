@@ -6,7 +6,7 @@ use crate::models::{
     PaginatedResponse
 };
 use sqlx::Row;
-use chrono::{Utc, DateTime};
+use chrono::{Utc, DateTime, NaiveDate, Datelike};
 use crate::models::PaginationInfo;
 use serde_json::Value;
 use std::collections::HashMap;
