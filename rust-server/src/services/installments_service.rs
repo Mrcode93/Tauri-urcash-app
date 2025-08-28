@@ -2,12 +2,13 @@ use anyhow::Result;
 use crate::database::Database;
 use crate::models::{
     Installment, CreateInstallmentRequest, UpdateInstallmentRequest, InstallmentQuery, InstallmentFilters,
-    InstallmentListResponse, ApiResponse, PaginatedResponse
+    InstallmentListResponse, ApiResponse, PaginatedResponse, CreateInstallmentPlanRequest, InstallmentPaymentRequest
 };
 use sqlx::Row;
 use chrono::{Utc, DateTime};
 use crate::models::PaginationInfo;
 use serde_json::Value;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct InstallmentsService;
