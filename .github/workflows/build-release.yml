@@ -55,21 +55,24 @@ jobs:
         with:
           node-version: 'lts/*'
 
-      - name: Verify package-lock.json exists
+      - name: Verify package-lock.json exists (Unix)
+        if: runner.os != 'Windows'
         run: |
           echo "Current directory: $(pwd)"
           echo "Listing frontend directory:"
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            dir frontend
-          else
-            ls -la frontend/
-          fi
+          ls -la frontend/
           echo "Checking if package-lock.json exists:"
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            if exist frontend\package-lock.json (echo "package-lock.json exists") else (echo "package-lock.json NOT found")
-          else
-            test -f frontend/package-lock.json && echo "package-lock.json exists" || echo "package-lock.json NOT found"
-          fi
+          test -f frontend/package-lock.json && echo "package-lock.json exists" || echo "package-lock.json NOT found"
+
+      - name: Verify package-lock.json exists (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          echo Current directory: %cd%
+          echo Listing frontend directory:
+          dir frontend
+          echo Checking if package-lock.json exists:
+          if exist frontend\package-lock.json (echo package-lock.json exists) else (echo package-lock.json NOT found)
 
       - name: Install frontend dependencies
         working-directory: frontend
