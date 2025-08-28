@@ -1,14 +1,12 @@
 use anyhow::Result;
 use crate::database::Database;
 use crate::models::{
-    Installment, InstallmentQuery, CreateInstallmentRequest, UpdateInstallmentRequest, 
-    InstallmentPaymentRequest, CreateInstallmentPlanRequest, InstallmentListResponse,
-    InstallmentWithDetails, InstallmentGroupedBySale, InstallmentSummary, 
-    InstallmentPlan, InstallmentPlanResponse, PaymentRecordResponse, PaymentRecord
+    Installment, CreateInstallmentRequest, UpdateInstallmentRequest, InstallmentQuery, InstallmentFilters,
+    InstallmentListResponse, ApiResponse, PaginatedResponse
 };
 use sqlx::{Row, SqlitePool};
-use tracing::{info, warn, error};
-use chrono::{Utc, DateTime, NaiveDate, NaiveDateTime};
+use chrono::{Utc, DateTime};
+use crate::models::PaginationInfo;
 use serde_json::Value;
 
 #[derive(Clone)]

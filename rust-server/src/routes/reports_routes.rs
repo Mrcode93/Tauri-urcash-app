@@ -1,14 +1,20 @@
 use axum::{
-    routing::get,
+    routing::{get, post},
     Router,
-    extract::{State, Query},
+    extract::{State, Path, Json, Query},
     response::IntoResponse,
-    Json,
+    http::StatusCode,
 };
+use crate::database::Database;
+use crate::models::{
+    report::*,
+    ApiResponse,
+    PaginationInfo,
+    PaginatedResponse
+};
+use crate::services::report_service::ReportService;
+use tracing::{info, error};
 use serde_json::json;
-use crate::AppState;
-use crate::models::report::ReportQuery;
-use tracing::{info, warn, error};
 
 // Get dashboard summary
 async fn get_dashboard_summary(

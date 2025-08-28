@@ -1,14 +1,12 @@
 use anyhow::Result;
 use crate::database::Database;
 use crate::models::{
-    Employee, EmployeeQuery, CreateEmployeeRequest, UpdateEmployeeRequest, 
-    CalculateCommissionRequest, CommissionCalculation, EmployeeListResponse, 
-    EmployeeDropdown, EmployeeWithCommission
+    Employee, CreateEmployeeRequest, UpdateEmployeeRequest, EmployeeQuery, EmployeeFilters,
+    EmployeeListResponse, ApiResponse, PaginatedResponse
 };
-use crate::models::PaginationInfo;
 use sqlx::{Row, SqlitePool};
-use tracing::{info, warn, error};
-use chrono::{Utc, DateTime, NaiveDate};
+use chrono::{Utc, DateTime};
+use crate::models::PaginationInfo;
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -295,11 +293,11 @@ impl EmployeeService {
             ORDER BY name
         "#;
 
-        let employees: Vec<EmployeeDropdown> = sqlx::query(sql)
+        let employees: Vec<crate::models::EmployeeDropdown> = sqlx::query(sql)
             .fetch_all(&db.pool)
             .await?
             .into_iter()
-            .map(|row| EmployeeDropdown {
+            .map(|row| crate::models::EmployeeDropdown {
                 id: row.get("id"),
                 name: row.get("name"),
                 phone: row.get("phone"),
@@ -323,11 +321,11 @@ impl EmployeeService {
             ORDER BY name
         "#;
 
-        let employees: Vec<EmployeeWithCommission> = sqlx::query(sql)
+        let employees: Vec<crate::models::EmployeeWithCommission> = sqlx::query(sql)
             .fetch_all(&db.pool)
             .await?
             .into_iter()
-            .map(|row| EmployeeWithCommission {
+            .map(|row| crate::models::EmployeeWithCommission {
                 id: row.get("id"),
                 name: row.get("name"),
                 phone: row.get("phone"),
@@ -347,7 +345,7 @@ impl EmployeeService {
     }
 
     // Calculate commission for an employee
-    pub async fn calculate_commission(&self, db: &Database, payload: CalculateCommissionRequest) -> Result<Value> {
+    pub async fn calculate_commission(&self, db: &Database, payload: crate::models::CalculateCommissionRequest) -> Result<Value> {
         let employee = self.get_by_id(db, payload.employee_id).await?;
         if employee.is_none() {
             return Err(anyhow::anyhow!("Employee not found"));
@@ -362,7 +360,7 @@ impl EmployeeService {
             commission = employee.commission_amount;
         }
 
-        let calculation = CommissionCalculation {
+        let calculation = crate::models::CommissionCalculation {
             employee_id: payload.employee_id,
             employee_name: employee.name,
             sales_amount: payload.sales_amount,

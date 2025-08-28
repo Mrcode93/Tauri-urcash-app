@@ -1,22 +1,25 @@
 use axum::{
     routing::{get, post, put, delete},
     Router,
-    extract::{State, Path, Query},
+    extract::{State, Path, Json, Query},
     response::IntoResponse,
-    Json,
+    http::StatusCode,
 };
-use serde_json::json;
-use crate::AppState;
+use crate::database::Database;
 use crate::models::{
-    ProductQuery, CreateProductRequest, UpdateProductRequest
+    product::*,
+    ApiResponse,
+    PaginationInfo,
+    PaginatedResponse
 };
-use serde::{Deserialize, Serialize};
+use crate::services::product_service::ProductService;
+use tracing::{info, error};
+use serde_json::json;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateProductStockRequest {
     pub quantity: i64,
 }
-use tracing::{info, warn, error};
 
 // Get all products
 async fn get_all_products(

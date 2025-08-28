@@ -94,7 +94,7 @@ jobs:
           fi
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version 2.0.0-beta.14
+        run: cargo install tauri-cli --version 2.0.0-rc
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0

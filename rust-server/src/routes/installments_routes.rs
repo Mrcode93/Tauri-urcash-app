@@ -1,17 +1,20 @@
 use axum::{
     routing::{get, post, put, delete},
     Router,
-    extract::{State, Path, Query},
+    extract::{State, Path, Json, Query},
     response::IntoResponse,
-    Json,
+    http::StatusCode,
 };
+use crate::database::Database;
+use crate::models::{
+    installment::*,
+    ApiResponse,
+    PaginationInfo,
+    PaginatedResponse
+};
+use crate::services::installments_service::InstallmentsService;
+use tracing::{info, error};
 use serde_json::json;
-use crate::AppState;
-use crate::models::installment::{
-    InstallmentQuery, CreateInstallmentRequest, UpdateInstallmentRequest, 
-    InstallmentPaymentRequest, CreateInstallmentPlanRequest
-};
-use tracing::{info, warn, error};
 
 // Get all installments
 async fn get_all_installments(

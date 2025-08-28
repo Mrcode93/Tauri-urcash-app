@@ -1,18 +1,20 @@
 use axum::{
     routing::{get, post, put, delete},
     Router,
-    extract::{State, Path, Query},
+    extract::{State, Path, Json, Query},
     response::IntoResponse,
-    Json,
+    http::StatusCode,
 };
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-use crate::AppState;
+use crate::database::Database;
 use crate::models::{
-    Customer, CreateCustomerRequest, UpdateCustomerRequest, CustomerQuery, CustomerFilters,
-    CustomerListResponse, CustomerWithSales, CustomerDetails, ApiResponse
+    customer::*,
+    ApiResponse,
+    PaginationInfo,
+    PaginatedResponse
 };
-use tracing::{info, warn, error};
+use crate::services::customer_service::CustomerService;
+use tracing::{info, error};
+use serde_json::json;
 
 // Get all customers
 async fn get_all_customers(

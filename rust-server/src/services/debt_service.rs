@@ -1,13 +1,12 @@
 use anyhow::Result;
 use crate::database::Database;
 use crate::models::{
-    Debt, DebtDetail, CustomerWithDebts, CustomerDebtInfo, DebtQuery, UpdateDebtRequest,
-    RepayDebtRequest, RepayDebtLegacyRequest, DebtStats, DebtListResponse, PaginationInfo,
-    AppliedPayment, RepayDebtResponse, DebtPaginationInfo
+    Debt, CreateDebtRequest, UpdateDebtRequest, DebtQuery, DebtFilters,
+    DebtListResponse, ApiResponse, PaginatedResponse
 };
 use sqlx::{Row, SqlitePool};
-use tracing::{info, warn, error};
 use chrono::{Utc, DateTime};
+use crate::models::PaginationInfo;
 use serde_json::Value;
 
 #[derive(Clone)]

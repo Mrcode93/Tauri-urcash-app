@@ -11,7 +11,7 @@ use axum::{
     Router,
 };
 use serde_json::json;
-use tracing::{info, warn, error};
+use tracing::{info, error};
 
 // ==================== CLOUD BACKUP OPERATIONS ====================
 

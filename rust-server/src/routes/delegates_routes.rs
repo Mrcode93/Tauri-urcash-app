@@ -1,18 +1,20 @@
 use axum::{
     routing::{get, post, put, delete},
     Router,
-    extract::{State, Path, Query},
+    extract::{State, Path, Json, Query},
     response::IntoResponse,
-    Json,
+    http::StatusCode,
 };
-use serde_json::json;
-use crate::AppState;
+use crate::database::Database;
 use crate::models::{
-    DelegateQuery, CreateDelegateRequest, UpdateDelegateRequest, CreateDelegateSaleRequest,
-    DelegateSalesQuery, CreateDelegateCollectionRequest, AssignCustomerRequest,
-    BulkAssignCustomersRequest, CommissionQuery, PayCommissionRequest
+    delegate::*,
+    ApiResponse,
+    PaginationInfo,
+    PaginatedResponse
 };
-use tracing::{info, warn, error};
+use crate::services::delegates_service::DelegatesService;
+use tracing::{info, error};
+use serde_json::json;
 
 // Get all delegates
 async fn get_all_delegates(
