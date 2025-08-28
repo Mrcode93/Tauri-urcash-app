@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { AppDispatch, RootState } from '@/app/store';
 import { initializeApp } from '@/features/app/appSlice';
+import { getCurrentUserWithPermissions } from '@/features/auth/authSlice';
 import { Loader2, RefreshCw, Zap } from 'lucide-react';
 import { API_CONFIG } from '@/lib/api';
 import apiService from '@/lib/apiService';
@@ -16,7 +17,7 @@ const AppInitializer = ({ children }: AppInitializerProps) => {
   const dispatch = useDispatch<AppDispatch>();
   const location = useLocation();
   const { isInitialized, isLoading, error } = useSelector((state: RootState) => state.app);
-  const { isAuthenticated, token, authChecked } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, token, authChecked, user } = useSelector((state: RootState) => state.auth);
   const [retryCount, setRetryCount] = useState(0);
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [cacheStats, setCacheStats] = useState(cacheService.getStats());
@@ -83,6 +84,21 @@ const AppInitializer = ({ children }: AppInitializerProps) => {
     }
   }, [token, isAuthenticated]);
 
+  // Verify authentication with server
+  const verifyAuthentication = useCallback(async () => {
+    if (isAuthenticated && token && user) {
+      try {
+        // Verify token is still valid by getting current user
+        await dispatch(getCurrentUserWithPermissions()).unwrap();
+        return true;
+      } catch (error) {
+        console.error('Authentication verification failed:', error);
+        return false;
+      }
+    }
+    return false;
+  }, [dispatch, isAuthenticated, token, user]);
+
   const handleInitialize = useCallback(async () => {
     try {
       
@@ -93,37 +109,37 @@ const AppInitializer = ({ children }: AppInitializerProps) => {
         throw new Error('Server is not available');
       }
       
-      // Only preload data if user is authenticated and we have a valid token
-      // Skip preload entirely for now to avoid 401 errors
+      // Verify authentication if user appears to be authenticated
+      if (isAuthenticated && token && user) {
+        const authValid = await verifyAuthentication();
+        if (!authValid) {
+          // Authentication is invalid, let the auth slice handle the logout
+          return;
+        }
+      }
       
-      // TODO: Re-enable preload once authentication is properly handled
-      // if (isAuthenticated && token && authChecked) {
-      //   
-      //   preloadEssentialData().catch(console.warn);
-      // } else {
-      //   
-      // }
+      // Only preload data if user is authenticated and we have a valid token
+      if (isAuthenticated && token && authChecked) {
+        preloadEssentialData().catch(console.warn);
+      }
       
       // Initialize app with optimized loading
       await dispatch(initializeApp()).unwrap();
       
       // Update cache stats
       setCacheStats(cacheService.getStats());
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('App initialization failed:', error);
       setRetryCount(prev => prev + 1);
     }
-  }, [dispatch, checkServerStatus, preloadEssentialData, isAuthenticated, token, authChecked]);
+  }, [dispatch, checkServerStatus, preloadEssentialData, verifyAuthentication, isAuthenticated, token, authChecked]);
 
   useEffect(() => {
     
     
     // Only initialize app if user is authenticated, auth has been checked, and we're on a private route
     if (isPrivateRoute && isAuthenticated && token && authChecked && !isInitialized && !isLoading) {
-      
       handleInitialize();
-    } else {
-      
     }
   }, [dispatch, isInitialized, isLoading, isAuthenticated, token, authChecked, handleInitialize, isPrivateRoute]);
 

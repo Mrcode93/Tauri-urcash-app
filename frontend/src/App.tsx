@@ -19,6 +19,9 @@ import CustomErrorBoundary from './components/ErrorBoundary';
 import LicenseNotificationManager from './components/LicenseNotification';
 import { initAuthStorage } from '@/lib/auth';
 import { useEffect } from 'react';
+import { useDispatch } from 'react-redux';
+import { initializeAuth } from '@/features/auth/authSlice';
+import { AppDispatch } from './app/store';
 
 // Optimized QueryClient configuration for better performance
 const queryClient = new QueryClient({
@@ -69,12 +72,30 @@ const ErrorFallback = ({ error, resetErrorBoundary }: { error: Error; resetError
   );
 };
 
-function App() {
-  // Initialize auth storage on app startup
-  useEffect(() => {
-    initAuthStorage();
-  }, []);
+// Authentication initializer component
+const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
+  const dispatch = useDispatch<AppDispatch>();
 
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // Initialize auth storage first
+        await initAuthStorage();
+        
+        // Then initialize authentication state from storage
+        await dispatch(initializeAuth()).unwrap();
+      } catch (error) {
+        console.error('Failed to initialize authentication:', error);
+      }
+    };
+
+    initializeApp();
+  }, [dispatch]);
+
+  return <>{children}</>;
+};
+
+function App() {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <Provider store={store}>
@@ -85,28 +106,30 @@ function App() {
                 <BackupNotificationProvider>
                   <KeyboardProvider>
                     <HashRouter>
-                      <Sonner 
-                        position="top-center" 
-                        richColors 
-                        className="z-[99999] !opacity-100" 
-                        toastOptions={{
-                          style: {
-                            marginBottom: "8px",
-                          },
-                        }}
-                        expand={false}
-                        closeButton
-                      />
-                      <BackupNotification />
-                      <GlobalKeyboard />
-                      <LicenseNotificationManager />
-                      <LicenseGuard>
-                        <AppInitializer>
-                          <CustomErrorBoundary>
-                            <AppRoutes />
-                          </CustomErrorBoundary>
-                        </AppInitializer>
-                      </LicenseGuard>
+                      <AuthInitializer>
+                        <Sonner 
+                          position="top-center" 
+                          richColors 
+                          className="z-[99999] !opacity-100" 
+                          toastOptions={{
+                            style: {
+                              marginBottom: "8px",
+                            },
+                          }}
+                          expand={false}
+                          closeButton
+                        />
+                        <BackupNotification />
+                        <GlobalKeyboard />
+                        <LicenseNotificationManager />
+                        <LicenseGuard>
+                          <AppInitializer>
+                            <CustomErrorBoundary>
+                              <AppRoutes />
+                            </CustomErrorBoundary>
+                          </AppInitializer>
+                        </LicenseGuard>
+                      </AuthInitializer>
                     </HashRouter>
                   </KeyboardProvider>
                 </BackupNotificationProvider>

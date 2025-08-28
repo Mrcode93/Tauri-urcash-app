@@ -45,10 +45,18 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/icon.png"
+      "icons/icon.png",
+      "icons/logo.ico",
+      "icons/logo.icns"
     ],
     "resources": [
-      "bin/*"
+      "bin/*",
+      "icons/license.txt",
+      "icons/license.rtf",
+      "icons/terms-ar.txt",
+      "icons/terms-en.txt",
+      "icons/installerSidebar.png",
+      "icons/installerSidebar.bmp"
     ],
     "longDescription": "A comprehensive Point of Sale application with inventory management, sales tracking, and financial reporting capabilities.",
     "shortDescription": "URCash Point of Sale Application",

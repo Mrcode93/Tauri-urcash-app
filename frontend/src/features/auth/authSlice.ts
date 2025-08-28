@@ -36,6 +36,24 @@ const getInitialUser = async (): Promise<User | null> => {
   }
 };
 
+// Initialize authentication state from storage
+export const initializeAuth = createAsyncThunk<
+  { user: User | null; token: string | null },
+  void,
+  { rejectValue: string }
+>('auth/initialize', async (_, { rejectWithValue }) => {
+  try {
+    const user = await getInitialUser();
+    const token = await getToken();
+    
+    return { user, token };
+  } catch (error: unknown) {
+    return rejectWithValue(
+      error instanceof Error ? error.message : 'Failed to initialize authentication'
+    );
+  }
+});
+
 const initialState: AuthState = {
   user: null,
   token: null,
@@ -275,6 +293,24 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // Initialize auth
+      .addCase(initializeAuth.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(initializeAuth.fulfilled, (state, action: PayloadAction<{ user: User | null; token: string | null }>) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.isAuthenticated = !!action.payload.user;
+        state.authChecked = true;
+      })
+      .addCase(initializeAuth.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Failed to initialize authentication';
+        state.authChecked = true;
+      })
+
       // Login with permissions
       .addCase(loginWithPermissions.pending, (state) => {
         state.loading = true;

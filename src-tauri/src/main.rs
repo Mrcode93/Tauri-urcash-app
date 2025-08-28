@@ -1,284 +1,353 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod server;
+mod config;
+
+use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{Manager, AppHandle};
-use tauri_plugin_shell::ShellExt;
-use axum::{
-    extract::Query,
-    response::Json,
-    routing::get,
-    Router,
-};
-use serde::Deserialize;
-use serde_json::{json, Value};
-use tower_http::cors::CorsLayer;
+use tokio::time::interval;
+use serde::{Deserialize, Serialize};
+use tauri::{Manager, State, Emitter};
+use std::process::Command;
+use std::path::PathBuf;
+use std::fs;
+use std::env;
+use reqwest;
+use crate::config::ConfigManager;
 
-#[derive(Deserialize)]
-struct BasicQuery {
-    page: Option<i32>,
-    limit: Option<i32>,
+// Global state for connectivity monitoring
+struct ConnectivityState {
+    is_online: Mutex<bool>,
+    monitoring_active: Mutex<bool>,
 }
 
-// Mock handlers for the API endpoints the frontend expects
-async fn health_handler() -> Json<Value> {
-    Json(json!({
-        "status": "ok",
-        "message": "URCash Server is running!"
-    }))
+// Global state for configuration management
+struct ConfigState {
+    config_manager: Mutex<ConfigManager>,
 }
 
-async fn backup_scheduler_status_handler() -> Json<Value> {
-    Json(json!({
-        "success": true,
-        "data": {
-            "enabled": true,
-            "running": false,
-            "lastBackup": null,
-            "nextBackup": null,
-            "interval": "daily",
-            "status": "idle"
+// App configuration structure
+#[derive(Serialize, Deserialize, Clone)]
+struct AppConfig {
+    branch: String,
+    ip: String,
+    auto_connect: bool,
+    port: u16,
+    updated_at: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            branch: "main".to_string(),
+            ip: get_local_ip_address(),
+            auto_connect: false,
+            port: 39000,
+            updated_at: chrono::Utc::now().to_rfc3339(),
         }
-    }))
+    }
 }
 
-async fn cash_box_summary_handler() -> Json<Value> {
-    Json(json!({
-        "success": true,
-        "data": {
-            "totalCash": 0,
-            "isOpen": false,
-            "lastTransaction": null,
-            "dailyStats": {
-                "sales": 0,
-                "purchases": 0,
-                "expenses": 0
+// Get local IP address
+fn get_local_ip_address() -> String {
+    // This is a simplified version - you might want to use a proper network library
+    "127.0.0.1".to_string()
+}
+
+// Get app config path
+fn get_app_config_path() -> PathBuf {
+    let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    home_dir.join(".urcash").join("appConfig.json")
+}
+
+// Ensure app config directory exists
+fn ensure_app_config_dir() -> std::io::Result<()> {
+    let config_path = get_app_config_path();
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    Ok(())
+}
+
+// Read app configuration
+fn read_app_config() -> AppConfig {
+    let config_path = get_app_config_path();
+    
+    if let Ok(contents) = fs::read_to_string(&config_path) {
+        if let Ok(config) = serde_json::from_str::<AppConfig>(&contents) {
+            return config;
+        }
+    }
+    
+    // Return default config if file doesn't exist or is invalid
+    AppConfig::default()
+}
+
+// Save app configuration
+fn save_app_config(config: &AppConfig) -> Result<(), Box<dyn std::error::Error>> {
+    ensure_app_config_dir()?;
+    let config_path = get_app_config_path();
+    let json = serde_json::to_string_pretty(config)?;
+    fs::write(config_path, json)?;
+    Ok(())
+}
+
+// Check internet connectivity
+async fn check_internet_connectivity() -> bool {
+    let endpoints = vec![
+        "https://www.google.com",
+        "https://www.cloudflare.com",
+        "https://httpbin.org/get"
+    ];
+
+    let client = reqwest::Client::new();
+    
+    for endpoint in endpoints {
+        if let Ok(response) = client
+            .get(endpoint)
+            .timeout(Duration::from_secs(5))
+            .header("User-Agent", "Urcash-Connectivity-Check/1.0")
+            .send()
+            .await
+        {
+            if response.status().is_success() {
+                return true;
             }
         }
-    }))
+    }
+    
+    false
 }
 
-async fn cash_box_transactions_handler(Query(query): Query<BasicQuery>) -> Json<Value> {
-    Json(json!({
-        "success": true,
-        "data": [],
-        "pagination": {
-            "page": query.page.unwrap_or(1),
-            "limit": query.limit.unwrap_or(50),
-            "total": 0,
-            "totalPages": 0
+// Start connectivity monitoring
+async fn start_connectivity_monitoring(app: tauri::AppHandle, state: State<'_, ConnectivityState>) {
+    let mut interval = interval(Duration::from_secs(30));
+    
+    // Check immediately
+    let is_online = check_internet_connectivity().await;
+    {
+        let mut online_state = state.is_online.lock().unwrap();
+        *online_state = is_online;
+    }
+    
+    // Emit initial state
+    app.emit("internet-connectivity-changed", serde_json::json!({
+        "isOnline": is_online
+    })).unwrap();
+    
+    // Start periodic monitoring
+    {
+        let mut monitoring = state.monitoring_active.lock().unwrap();
+        *monitoring = true;
+    }
+    
+    while {
+        let monitoring = state.monitoring_active.lock().unwrap();
+        *monitoring
+    } {
+        interval.tick().await;
+        
+        let is_online = check_internet_connectivity().await;
+        let state_changed = {
+            let mut online_state = state.is_online.lock().unwrap();
+            let changed = *online_state != is_online;
+            *online_state = is_online;
+            changed
+        };
+        
+        if state_changed {
+            app.emit("internet-connectivity-changed", serde_json::json!({
+                "isOnline": is_online
+            })).unwrap();
         }
-    }))
+    }
 }
 
-async fn create_router() -> Router {
-    Router::new()
-        .route("/", get(health_handler))
-        .route("/health", get(health_handler))
-        .route("/api/settings/backup/scheduler-status", get(backup_scheduler_status_handler))
-        .route("/api/cash-box/my-summary", get(cash_box_summary_handler))
-        .route("/api/cash-box/transactions/:id", get(cash_box_transactions_handler))
-        .route("/api/cash-box/open", axum::routing::post(|| async { 
-            Json(json!({"success": true, "message": "Cash box opened"}))
-        }))
-        // Add more mock endpoints as needed by the frontend
-        .layer(
-            CorsLayer::new()
-                .allow_origin("tauri://localhost".parse::<axum::http::HeaderValue>().unwrap())
-                .allow_origin("http://localhost:3000".parse::<axum::http::HeaderValue>().unwrap())
-                .allow_origin("http://localhost:39000".parse::<axum::http::HeaderValue>().unwrap())
-                .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PUT, axum::http::Method::DELETE])
-                .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::header::AUTHORIZATION])
-                .allow_credentials(true)
-        )
+// Tauri commands
+
+#[tauri::command]
+async fn get_app_config() -> Result<AppConfig, String> {
+    Ok(read_app_config())
 }
 
-async fn start_embedded_server() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let app = create_router().await;
+#[tauri::command]
+async fn save_app_config_command(config: AppConfig) -> Result<(), String> {
+    save_app_config(&config).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn check_connectivity() -> Result<bool, String> {
+    Ok(check_internet_connectivity().await)
+}
+
+#[tauri::command]
+fn show_toast_notification(
+    app: tauri::AppHandle,
+    title: String,
+    message: String,
+    notification_type: String,
+) -> Result<(), String> {
+    app.emit("show-toast-notification", serde_json::json!({
+        "title": title,
+        "message": message,
+        "type": notification_type
+    })).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn require_internet_connection(
+    app: tauri::AppHandle,
+    operation: String,
+) -> Result<bool, String> {
+    let is_connected = check_internet_connectivity().await;
     
-    // Try to start the server on port 39000
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:39000").await?;
-    println!("🚀 URCash Embedded Server running on http://127.0.0.1:39000");
+    if !is_connected {
+        show_toast_notification(
+            app,
+            "No Internet Connection".to_string(),
+            format!("{} requires an internet connection. Please check your network and try again.", operation),
+            "error".to_string(),
+        )?;
+        return Ok(false);
+    }
     
-    axum::serve(listener, app).await?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn kill_process_by_port(port: u16) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let output = Command::new("netstat")
+            .args(&["-ano"])
+            .output()
+            .map_err(|e| e.to_string())?;
+        
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        for line in output_str.lines() {
+            if line.contains(&format!(":{}", port)) {
+                if let Some(pid) = line.split_whitespace().last() {
+                    if let Ok(pid_num) = pid.parse::<u32>() {
+                        let _ = Command::new("taskkill")
+                            .args(&["/PID", &pid_num.to_string(), "/F"])
+                            .output();
+                    }
+                }
+            }
+        }
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = Command::new("lsof")
+            .args(&["-ti", &format!(":{}", port)])
+            .output()
+            .map_err(|e| e.to_string())?;
+        
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        for pid_str in output_str.lines() {
+            if let Ok(pid) = pid_str.parse::<u32>() {
+                let _ = Command::new("kill")
+                    .args(&["-9", &pid.to_string()])
+                    .output();
+            }
+        }
+    }
     
     Ok(())
 }
 
 #[tauri::command]
-async fn start_rust_server(app: AppHandle) -> Result<String, String> {
-    println!("🔄 Starting external Rust server...");
-    
-    // Try multiple possible binary locations
-    let mut binary_path = None;
-    
-    // First, try the resource directory (for bundled apps)
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        let resource_binary = resource_dir.join("bin").join("rust-server");
-        println!("🔍 Checking resource path: {:?}", resource_binary);
-        if resource_binary.exists() {
-            binary_path = Some(resource_binary);
-        }
-    }
-    
-    // If not found in resources, try the app directory
-    if binary_path.is_none() {
-        if let Ok(app_dir) = app.path().app_data_dir() {
-            let app_binary = app_dir.join("bin").join("rust-server");
-            println!("🔍 Checking app data path: {:?}", app_binary);
-            if app_binary.exists() {
-                binary_path = Some(app_binary);
-            }
-        }
-    }
-    
-    // Try relative to the executable (for dev builds)
-    if binary_path.is_none() {
-        if let Ok(exe_dir) = std::env::current_exe() {
-            let exe_binary = exe_dir.parent()
-                .unwrap_or_else(|| std::path::Path::new("."))
-                .join("bin")
-                .join("rust-server");
-            println!("🔍 Checking exe relative path: {:?}", exe_binary);
-            if exe_binary.exists() {
-                binary_path = Some(exe_binary);
-            }
-        }
-    }
-    
-    let resource_path = binary_path.ok_or_else(|| {
-        "Rust server binary not found in any expected location".to_string()
-    })?;
-    
-    println!("📍 Server binary found at: {:?}", resource_path);
-    
-    // Make sure the binary is executable
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Ok(metadata) = std::fs::metadata(&resource_path) {
-            let mut perms = metadata.permissions();
-            perms.set_mode(0o755); // rwxr-xr-x
-            if let Err(e) = std::fs::set_permissions(&resource_path, perms) {
-                println!("⚠️ Warning: Could not set executable permissions: {}", e);
-            }
-        }
-    }
-    
-    // Use tauri-plugin-shell to start the process
-    let shell = app.shell();
-    
-    match shell.command(&resource_path)
-        .args(&[] as &[&str])  // No additional arguments
-        .spawn()
-    {
-        Ok((mut rx, child)) => {
-            println!("✅ External Rust server started with PID: {}", child.pid());
-            
-            // Spawn a task to handle the process output
-            tauri::async_runtime::spawn(async move {
-                while let Some(event) = rx.recv().await {
-                    match event {
-                        tauri_plugin_shell::process::CommandEvent::Stdout(line) => {
-                            println!("Server stdout: {}", String::from_utf8_lossy(&line));
-                        }
-                        tauri_plugin_shell::process::CommandEvent::Stderr(line) => {
-                            println!("Server stderr: {}", String::from_utf8_lossy(&line));
-                        }
-                        tauri_plugin_shell::process::CommandEvent::Error(error) => {
-                            println!("Server error: {}", error);
-                        }
-                        tauri_plugin_shell::process::CommandEvent::Terminated(payload) => {
-                            println!("Server terminated with code: {:?}", payload.code);
-                            break;
-                        }
-                        _ => {}
-                    }
-                }
-            });
-            
-            Ok("External Rust server started successfully".to_string())
-        },
-        Err(e) => {
-            println!("❌ Failed to start external server: {}", e);
-            Err(format!("Failed to start external server: {}", e))
-        }
-    }
+fn get_local_ip_address_command() -> String {
+    get_local_ip_address()
 }
 
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 #[tauri::command]
-async fn toggle_devtools(window: tauri::Window) -> Result<String, String> {
-    println!("🔧 Devtools toggle requested");
-    // In Tauri 2.x with devtools enabled in config, right-click should show devtools
-    // Or press Ctrl+Shift+I (Windows/Linux) or Cmd+Option+I (macOS)
-    Ok("Devtools can be opened with right-click -> Inspect Element, or Ctrl+Shift+I (Cmd+Option+I on Mac)".to_string())
+fn get_app_name() -> String {
+    "أوركاش".to_string()
+}
+
+// Configuration management commands
+#[tauri::command]
+fn get_config_value(state: State<'_, ConfigState>, key: String) -> Result<Option<String>, String> {
+    let config_manager = state.config_manager.lock().unwrap();
+    Ok(config_manager.get(&key))
 }
 
 #[tauri::command]
-async fn check_server_status() -> Result<String, String> {
-    match tokio::net::TcpStream::connect("127.0.0.1:39000").await {
-        Ok(_) => Ok("Server is running".to_string()),
-        Err(_) => Err("Server is not running".to_string()),
-    }
+fn set_config_value(state: State<'_, ConfigState>, key: String, value: String) -> Result<(), String> {
+    let mut config_manager = state.config_manager.lock().unwrap();
+    config_manager.set(&key, value).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_all_config(state: State<'_, ConfigState>) -> Result<std::collections::HashMap<String, String>, String> {
+    let config_manager = state.config_manager.lock().unwrap();
+    Ok(config_manager.get_all())
+}
+
+#[tauri::command]
+fn update_api_key(state: State<'_, ConfigState>, new_api_key: String) -> Result<(), String> {
+    let mut config_manager = state.config_manager.lock().unwrap();
+    config_manager.update_api_key(new_api_key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_google_geolocation_api_key(state: State<'_, ConfigState>) -> Result<String, String> {
+    let config_manager = state.config_manager.lock().unwrap();
+    Ok(config_manager.get("GOOGLE_GEOLOCATION_API_KEY").unwrap_or_default())
+}
+
+#[tauri::command]
+async fn start_connectivity_monitoring_command(app: tauri::AppHandle, state: State<'_, ConnectivityState>) -> Result<(), String> {
+    start_connectivity_monitoring(app, state).await;
+    Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            let app_handle = app.handle().clone();
+            // Initialize connectivity state
+            let connectivity_state = ConnectivityState {
+                is_online: Mutex::new(true),
+                monitoring_active: Mutex::new(false),
+            };
             
-            // Start the external server when the app starts
-            tauri::async_runtime::spawn(async move {
-                println!("🚀 Starting URCash servers...");
-                
-                // First try to start the external rust server
-                match start_rust_server(app_handle.clone()).await {
-                    Ok(msg) => {
-                        println!("✅ {}", msg);
-                        // Give the external server more time to start and bind to port
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                        
-                        // Test if the server is actually responding
-                        let mut server_ready = false;
-                        for i in 0..10 {
-                            println!("🔍 Attempt {} - Checking if external server is ready...", i + 1);
-                            if tokio::net::TcpStream::connect("127.0.0.1:39000").await.is_ok() {
-                                println!("✅ External server is responding on port 39000");
-                                server_ready = true;
-                                break;
-                            }
-                            tokio::time::sleep(Duration::from_millis(500)).await;
-                        }
-                        
-                        if !server_ready {
-                            println!("⚠️ External server started but not responding on port 39000, starting embedded fallback");
-                            if let Err(e) = start_embedded_server().await {
-                                eprintln!("❌ Failed to start embedded server: {}", e);
-                            }
-                        }
-                    },
-                    Err(e) => {
-                        println!("⚠️ External server failed to start: {}", e);
-                        println!("🔄 Starting embedded server as fallback...");
-                        if let Err(e) = start_embedded_server().await {
-                            eprintln!("❌ Failed to start embedded server: {}", e);
-                        }
-                    }
-                }
-            });
+            // Initialize configuration state
+            let config_state = ConfigState {
+                config_manager: Mutex::new(ConfigManager::new(&app.handle())),
+            };
+            
+            // Manage both states
+            app.manage(connectivity_state);
+            app.manage(config_state);
+            
             Ok(())
         })
-        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
-            greet,
-            check_server_status,
-            start_rust_server,
-            toggle_devtools
+            get_app_config,
+            save_app_config_command,
+            check_connectivity,
+            show_toast_notification,
+            require_internet_connection,
+            kill_process_by_port,
+            get_local_ip_address_command,
+            get_app_version,
+            get_app_name,
+            // Configuration management commands
+            get_config_value,
+            set_config_value,
+            get_all_config,
+            update_api_key,
+            get_google_geolocation_api_key,
+            // Connectivity monitoring
+            start_connectivity_monitoring_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

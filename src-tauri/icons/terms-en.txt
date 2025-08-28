@@ -1,0 +1,44 @@
+📄 "Urcash" Software License Agreement
+Please read this agreement carefully before using the "Urcash" software. By using the software, you agree to be bound by the terms and conditions of this agreement.
+
+1. Software Definition
+"Urcash" software is an accounting and point-of-sale system designed to facilitate the management of sales, invoices, inventory, customers, debts, and reports, used on personal computers.
+
+2. Activation and Licensing
+The user is granted a personal license to use the software on one device (unless otherwise agreed).
+
+Some features are only available after activation through an official activation code issued by the developer.
+
+Activation may be for a limited period (trial) or permanent depending on the license type.
+
+3. Permitted Use
+You are allowed to use the software to manage your business or personal activities.
+
+Resale or distribution of the software is not permitted without written permission.
+
+Modification of software files or attempts to break protection or bypass activation is prohibited.
+
+4. Privacy and Data
+The software may collect some non-sensitive information about your device (such as device ID and approximate location) for activation and technical support purposes.
+
+Your data is not shared with any third party.
+
+5. Updates and Support
+Periodic updates to the software may be provided to improve performance or fix bugs.
+
+Updates may require internet connection or reactivation.
+
+Technical support is available through official approved channels only.
+
+6. Legal Liability
+The developer assumes no responsibility for any direct or indirect loss or damage resulting from the use of the software.
+
+The responsibility for keeping backup copies of data lies with the user.
+
+7. Termination of Use
+Use of the software may be terminated in case of violation of the agreement terms.
+
+The company reserves the right to suspend the license for any user who violates the terms of use or attempts to tamper with the system.
+
+✔️ By using the software, you agree to these terms.
+If you do not agree to any part of this agreement, please do not use the software.
