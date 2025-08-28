@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(cargo:*)",
+      "Bash(grep:*)",
+      "Bash(cp:*)",
+      "Bash(npm run build:*)",
+      "Bash(rustup target list:*)",
+      "Bash(rustup target:*)",
+      "Bash(chmod:*)",
+      "Bash(./build-local.sh:*)",
+      "Bash(sed:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

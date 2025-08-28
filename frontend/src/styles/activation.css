@@ -1,0 +1,101 @@
+/* Arabic Typography and RTL Support */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+
+.rtl {
+  direction: rtl;
+  font-family: 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.ltr {
+  direction: rtl;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+/* RTL-specific adjustments */
+.rtl .flex {
+  flex-direction: row-reverse;
+}
+
+.rtl .text-right {
+  text-align: right;
+}
+
+.rtl .text-left {
+  text-align: left;
+}
+
+/* Better Arabic text rendering */
+.rtl h1, .rtl h2, .rtl h3, .rtl h4, .rtl h5, .rtl h6 {
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.rtl p, .rtl span, .rtl div {
+  line-height: 1.6;
+}
+
+/* Gradient text for Arabic */
+.arabic-gradient {
+  background: linear-gradient(135deg, #24252d, #000000, #1a1b23);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animation for activation progress */
+@keyframes slideProgress {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+.activation-progress {
+  animation: slideProgress 2s ease-in-out;
+}
+
+/* Custom scrollbar for Arabic content */
+.rtl::-webkit-scrollbar {
+  width: 6px;
+}
+
+.rtl::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.rtl::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.rtl::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Floating animation for icons */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.float-animation {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Glow effect for activated status */
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(16, 185, 129, 0.6); }
+}
+
+.glow-success {
+  animation: glow 2s ease-in-out infinite;
+}
+
+/* Pulse animation for loading states */
+@keyframes pulse-custom {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.pulse-custom {
+  animation: pulse-custom 1.5s ease-in-out infinite;
+}

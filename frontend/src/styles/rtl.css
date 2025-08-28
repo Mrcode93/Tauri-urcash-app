@@ -1,0 +1,70 @@
+/* RTL Support for Settings Page */
+[dir="rtl"] {
+  font-family: 'Cairo', 'Tajawal', 'Arabic UI Text', sans-serif;
+}
+
+[dir="rtl"] .settings-container {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .settings-tab-list {
+  direction: rtl;
+}
+
+[dir="rtl"] .settings-form-grid {
+  direction: rtl;
+}
+
+[dir="rtl"] .settings-input {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .settings-input[type="email"],
+[dir="rtl"] .settings-input[type="url"],
+[dir="rtl"] .settings-input[type="tel"] {
+  text-align: left;
+  direction: ltr;
+}
+
+[dir="rtl"] .settings-floating-button {
+  left: 1.5rem;
+  right: auto;
+}
+
+[dir="rtl"] .settings-icon {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+/* RTL Animation Support */
+[dir="rtl"] .slide-in {
+  animation: slideInRTL 0.3s ease-out;
+}
+
+@keyframes slideInRTL {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* RTL Select and Dropdown */
+[dir="rtl"] .select-trigger {
+  text-align: right;
+}
+
+[dir="rtl"] .select-content {
+  direction: rtl;
+}
+
+/* RTL Badge and Alert positioning */
+[dir="rtl"] .alert-triangle {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}

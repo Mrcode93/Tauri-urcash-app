@@ -1,0 +1,25 @@
+{
+  "name": "urcash-tauri-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "URCash Point of Sale Application built with Tauri",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:debug": "tauri build --debug",
+    "build:frontend": "cd frontend && npm run build",
+    "build:rust-server": "cd rust-server && cargo build --release",
+    "build:rust-server:windows": "cd rust-server && cargo build --release --target x86_64-pc-windows-msvc",
+    "build:windows": "cd src-tauri && cargo tauri build --target x86_64-pc-windows-msvc",
+    "build:linux": "cd src-tauri && cargo tauri build --target x86_64-unknown-linux-gnu",
+    "build:all": "npm run build:rust-server && npm run build:frontend && npm run build",
+    "build:local": "./build-local.sh",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

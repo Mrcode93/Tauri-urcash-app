@@ -1,0 +1,88 @@
+[package]
+name = "rust-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web framework
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace", "compression-full", "fs"] }
+http = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "chrono"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Authentication & Security
+jsonwebtoken = "9.2"
+bcrypt = "0.15"
+uuid = { version = "1.0", features = ["v4"] }
+
+# Environment & Configuration
+dotenv = "0.15"
+config = "0.14"
+dirs = "5.0"
+shellexpand = "3.1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# File handling
+tokio-util = { version = "0.7", features = ["io"] }
+bytes = "1.0"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "multipart", "stream"] }
+
+# Caching
+moka = { version = "0.12", features = ["future"] }
+
+# Rate limiting
+governor = "0.6"
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# File upload
+multer = "3.1"
+
+# Excel handling
+calamine = "0.22"
+
+# System information
+sysinfo = "0.30"
+
+# Machine ID
+machine-uid = "0.5"
+
+# Hostname
+hostname = "0.3"
+
+# Async utilities
+futures = "0.3"
+
+# Cryptography
+aes = "0.8"
+cbc = "0.1"
+sha2 = "0.10"
+md-5 = "0.10"
+hex = "0.4"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Random number generation
+rand = "0.8"
+
+# Performance
+rayon = "1.8"
