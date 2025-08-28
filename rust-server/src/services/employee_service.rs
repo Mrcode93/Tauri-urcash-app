@@ -144,124 +144,66 @@ impl EmployeeService {
     }
 
     // Create new employee
-    pub async fn create(&self, db: &Database, payload: CreateEmployeeRequest) -> Result<Value> {
-        // Validate required fields
-        if payload.name.trim().is_empty() {
-            return Err(anyhow::anyhow!("Name is required"));
-        }
+    pub async fn create(&self, db: &Database, payload: CreateEmployeeRequest) -> Result<Value, anyhow::Error> {
+        let employee_id = sqlx::query(r#"
+            INSERT INTO employees (name, email, phone, address, position, salary, commission_rate, is_active, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#)
+        .bind(&payload.name)
+        .bind(&payload.email)
+        .bind(&payload.phone)
+        .bind(&payload.address)
+        .bind(&payload.position)
+        .bind(payload.salary)
+        .bind(payload.commission_rate)
+        .bind(payload.is_active)
+        .bind(&payload.notes)
+        .execute(&db.pool)
+        .await?
+        .last_insert_rowid();
 
-        // Validate commission rate
-        if let Some(rate) = payload.commission_rate {
-            if rate < 0.0 || rate > 100.0 {
-                return Err(anyhow::anyhow!("Commission rate must be between 0 and 100"));
-            }
-        }
-
-        // Validate commission amount
-        if let Some(amount) = payload.commission_amount {
-            if amount < 0.0 {
-                return Err(anyhow::anyhow!("Commission amount cannot be negative"));
-            }
-        }
-
-        // Validate salary
-        if let Some(salary) = payload.salary {
-            if salary < 0.0 {
-                return Err(anyhow::anyhow!("Salary cannot be negative"));
-            }
-        }
-
-        let sql = r#"
-            INSERT INTO employees (
-                name, phone, email, address, salary, commission_rate, commission_type, 
-                commission_amount, commission_start_date, commission_end_date, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        "#;
-
-        let result = sqlx::query(sql)
-            .bind(&payload.name)
-            .bind(&payload.phone)
-            .bind(&payload.email)
-            .bind(&payload.address)
-            .bind(payload.salary.unwrap_or(0.0))
-            .bind(payload.commission_rate.unwrap_or(0.0))
-            .bind(payload.commission_type.unwrap_or_else(|| "percentage".to_string()))
-            .bind(payload.commission_amount.unwrap_or(0.0))
-            .bind(&payload.commission_start_date)
-            .bind(&payload.commission_end_date)
-            .execute(&db.pool)
-            .await?;
-
+        let employee = self.get_by_id(db, employee_id).await?;
+        
         Ok(serde_json::json!({
-            "id": result.last_insert_rowid(),
-            "message": "تم إنشاء الموظف بنجاح"
+            "success": true,
+            "message": "تم إنشاء الموظف بنجاح",
+            "data": employee
         }))
     }
 
     // Update employee
-    pub async fn update(&self, db: &Database, id: i64, payload: UpdateEmployeeRequest) -> Result<Value> {
-        // Check if employee exists
-        let existing = sqlx::query("SELECT id FROM employees WHERE id = ?")
-            .bind(id)
-            .fetch_optional(&db.pool)
-            .await?;
-
-        if existing.is_none() {
-            return Err(anyhow::anyhow!("Employee not found"));
-        }
-
-        // Validate required fields
-        if payload.name.trim().is_empty() {
-            return Err(anyhow::anyhow!("Name is required"));
-        }
-
-        // Validate commission rate
-        if let Some(rate) = payload.commission_rate {
-            if rate < 0.0 || rate > 100.0 {
-                return Err(anyhow::anyhow!("Commission rate must be between 0 and 100"));
-            }
-        }
-
-        // Validate commission amount
-        if let Some(amount) = payload.commission_amount {
-            if amount < 0.0 {
-                return Err(anyhow::anyhow!("Commission amount cannot be negative"));
-            }
-        }
-
-        // Validate salary
-        if let Some(salary) = payload.salary {
-            if salary < 0.0 {
-                return Err(anyhow::anyhow!("Salary cannot be negative"));
-            }
-        }
-
-        let sql = r#"
+    pub async fn update(&self, db: &Database, id: i64, payload: UpdateEmployeeRequest) -> Result<Value, anyhow::Error> {
+        let changes = sqlx::query(r#"
             UPDATE employees 
-            SET name = ?, phone = ?, email = ?, address = ?, salary = ?, 
-                commission_rate = ?, commission_type = ?, commission_amount = ?, 
-                commission_start_date = ?, commission_end_date = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, email = ?, phone = ?, address = ?, position = ?, salary = ?, commission_rate = ?, is_active = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        "#;
+        "#)
+        .bind(&payload.name)
+        .bind(&payload.email)
+        .bind(&payload.phone)
+        .bind(&payload.address)
+        .bind(&payload.position)
+        .bind(payload.salary)
+        .bind(payload.commission_rate)
+        .bind(payload.is_active)
+        .bind(&payload.notes)
+        .bind(id)
+        .execute(&db.pool)
+        .await?;
 
-        sqlx::query(sql)
-            .bind(&payload.name)
-            .bind(&payload.phone)
-            .bind(&payload.email)
-            .bind(&payload.address)
-            .bind(payload.salary.unwrap_or(0.0))
-            .bind(payload.commission_rate.unwrap_or(0.0))
-            .bind(payload.commission_type.unwrap_or_else(|| "percentage".to_string()))
-            .bind(payload.commission_amount.unwrap_or(0.0))
-            .bind(&payload.commission_start_date)
-            .bind(&payload.commission_end_date)
-            .bind(id)
-            .execute(&db.pool)
-            .await?;
+        if changes.rows_affected() == 0 {
+            return Ok(serde_json::json!({
+                "success": false,
+                "message": "الموظف غير موجود"
+            }));
+        }
 
+        let employee = self.get_by_id(db, id).await?;
+        
         Ok(serde_json::json!({
             "success": true,
-            "message": "تم تحديث الموظف بنجاح"
+            "message": "تم تحديث بيانات الموظف بنجاح",
+            "data": employee
         }))
     }
 
@@ -286,92 +228,85 @@ impl EmployeeService {
     }
 
     // Get employees for dropdown
-    pub async fn get_dropdown_list(&self, db: &Database) -> Result<Value> {
-        let sql = r#"
-            SELECT id, name, phone 
-            FROM employees 
-            ORDER BY name
-        "#;
-
-        let employees: Vec<crate::models::EmployeeDropdown> = sqlx::query(sql)
-            .fetch_all(&db.pool)
-            .await?
-            .into_iter()
-            .map(|row| crate::models::EmployeeDropdown {
-                id: row.get("id"),
-                name: row.get("name"),
-                phone: row.get("phone"),
-            })
-            .collect();
+    pub async fn get_dropdown_list(&self, db: &Database) -> Result<Value, anyhow::Error> {
+        let employees = sqlx::query(r#"
+            SELECT id, name, position
+            FROM employees
+            WHERE is_active = 1
+            ORDER BY name ASC
+        "#)
+        .fetch_all(&db.pool)
+        .await?
+        .into_iter()
+        .map(|row| crate::models::EmployeeDropdown {
+            id: row.get("id"),
+            name: row.get("name"),
+            position: row.get("position"),
+        })
+        .collect::<Vec<_>>();
 
         Ok(serde_json::json!({
-            "employees": employees
+            "success": true,
+            "data": employees
         }))
     }
 
     // Get employees with commission information
-    pub async fn get_commission_list(&self, db: &Database) -> Result<Value> {
-        let sql = r#"
+    pub async fn get_commission_list(&self, db: &Database) -> Result<Value, anyhow::Error> {
+        let employees = sqlx::query(r#"
             SELECT 
-                id, name, phone, email, salary, commission_rate, 
-                commission_type, commission_amount, commission_start_date, 
-                commission_end_date
-            FROM employees 
-            WHERE commission_rate > 0 OR commission_amount > 0
-            ORDER BY name
-        "#;
-
-        let employees: Vec<crate::models::EmployeeWithCommission> = sqlx::query(sql)
-            .fetch_all(&db.pool)
-            .await?
-            .into_iter()
-            .map(|row| crate::models::EmployeeWithCommission {
-                id: row.get("id"),
-                name: row.get("name"),
-                phone: row.get("phone"),
-                email: row.get("email"),
-                salary: row.get("salary"),
-                commission_rate: row.get("commission_rate"),
-                commission_type: row.get("commission_type"),
-                commission_amount: row.get("commission_amount"),
-                commission_start_date: row.get("commission_start_date"),
-                commission_end_date: row.get("commission_end_date"),
-            })
-            .collect();
+                e.id, e.name, e.commission_rate,
+                COALESCE(SUM(si.quantity * si.price), 0) as total_sales,
+                COALESCE(SUM(si.quantity * si.price * e.commission_rate / 100), 0) as total_commission
+            FROM employees e
+            LEFT JOIN sales s ON s.employee_id = e.id
+            LEFT JOIN sale_items si ON s.id = si.sale_id
+            WHERE e.is_active = 1 AND s.status != 'returned'
+            GROUP BY e.id, e.name, e.commission_rate
+            ORDER BY total_commission DESC
+        "#)
+        .fetch_all(&db.pool)
+        .await?
+        .into_iter()
+        .map(|row| crate::models::EmployeeWithCommission {
+            id: row.get("id"),
+            name: row.get("name"),
+            commission_rate: row.get("commission_rate"),
+            total_sales: row.get("total_sales"),
+            total_commission: row.get("total_commission"),
+        })
+        .collect::<Vec<_>>();
 
         Ok(serde_json::json!({
-            "employees": employees
+            "success": true,
+            "data": employees
         }))
     }
 
     // Calculate commission for an employee
-    pub async fn calculate_commission(&self, db: &Database, payload: crate::models::CalculateCommissionRequest) -> Result<Value> {
+    pub async fn calculate_commission(&self, db: &Database, payload: crate::models::CalculateCommissionRequest) -> Result<Value, anyhow::Error> {
         let employee = self.get_by_id(db, payload.employee_id).await?;
         if employee.is_none() {
-            return Err(anyhow::anyhow!("Employee not found"));
+            return Ok(serde_json::json!({
+                "success": false,
+                "message": "الموظف غير موجود"
+            }));
         }
+
         let employee = employee.unwrap();
-
-        let mut commission = 0.0;
-
-        if employee.commission_type == "percentage" && employee.commission_rate > 0.0 {
-            commission = (payload.sales_amount * employee.commission_rate) / 100.0;
-        } else if employee.commission_type == "fixed" && employee.commission_amount > 0.0 {
-            commission = employee.commission_amount;
-        }
+        let commission_amount = payload.sales_amount * employee.commission_rate / 100.0;
 
         let calculation = crate::models::CommissionCalculation {
             employee_id: payload.employee_id,
             employee_name: employee.name,
             sales_amount: payload.sales_amount,
             commission_rate: employee.commission_rate,
-            commission_type: employee.commission_type,
-            commission_amount: employee.commission_amount,
-            calculated_commission: commission,
+            commission_amount,
         };
 
         Ok(serde_json::json!({
-            "calculation": calculation
+            "success": true,
+            "data": calculation
         }))
     }
 }
