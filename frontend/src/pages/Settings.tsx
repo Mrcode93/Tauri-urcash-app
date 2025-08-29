@@ -652,8 +652,7 @@ const Settings = () => {
         { id: 'customer-receipts', name: 'سند قبض', path: '/customer-receipts', icon: 'Receipt', enabled: true },
         { id: 'supplier-payment-receipts', name: 'سند صرف', path: '/supplier-payment-receipts', icon: 'CreditCard', enabled: true },
         // user box and boxes management
-        { id: 'cash-box', name: 'صندوق النقد', path: '/cash-box', icon: 'DollarSign', enabled: true },
-        { id: 'admin-cash-box', name: 'إدارة الصناديق', path: '/admin-cash-box', icon: 'Settings', enabled: true },
+        { id: 'admin-cash-box', name: 'إدارة الصناديق', path: '/admin-cash-box', icon: 'Settings', enabled: true }, // Removed
 
         { id: 'debts', name: 'الديون', path: '/debts', icon: 'FileText', enabled: true },
         { id: 'installments', name: 'الأقساط', path: '/installments', icon: 'Calendar', enabled: true },

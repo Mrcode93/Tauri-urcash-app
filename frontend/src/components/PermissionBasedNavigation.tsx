@@ -28,8 +28,6 @@ export const ROUTE_PERMISSIONS = {
   '/installments': 'installments.manage',
   '/customer-receipts': 'customers.manage',
   '/supplier-payment-receipts': 'suppliers.manage',
-  '/cash-box': 'cashbox.manage',
-  '/admin-cash-box': 'users.permissions',
   '/settings': 'settings.manage',
   '/admin-profiles': 'users.manage',
 } as const;
@@ -273,7 +271,6 @@ export const PermissionBasedButton: React.FC<PermissionBasedButtonProps> = ({
     'reports.view',
     'debts.manage',
     'installments.manage',
-    'cashbox.manage',
     'users.manage'
   ]));
   

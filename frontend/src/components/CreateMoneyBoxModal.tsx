@@ -11,12 +11,16 @@ import { toast } from '@/lib/toast';
 import { Plus, Loader2 } from 'lucide-react';
 
 interface CreateMoneyBoxModalProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onSuccess?: () => void;
 }
 
-const CreateMoneyBoxModal: React.FC<CreateMoneyBoxModalProps> = ({ onSuccess }) => {
+const CreateMoneyBoxModal: React.FC<CreateMoneyBoxModalProps> = ({ open: externalOpen, onOpenChange, onSuccess }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -68,12 +72,6 @@ const CreateMoneyBoxModal: React.FC<CreateMoneyBoxModalProps> = ({ onSuccess }) 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          إضافة صندوق جديد
-        </Button>
-      </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>إنشاء صندوق مال جديد</DialogTitle>

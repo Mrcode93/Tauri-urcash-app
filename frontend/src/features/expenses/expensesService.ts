@@ -51,7 +51,7 @@ export interface CreateExpenseData {
   description: string;
   category: string;
   date: string;
-  moneyBoxId: string;
+  money_box_id: number;
 }
 
 export const getExpenses = async (): Promise<Expense[]> => {

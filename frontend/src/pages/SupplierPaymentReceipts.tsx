@@ -41,7 +41,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { CashBoxGuard } from '@/components/CashBoxGuard';
+// import { CashBoxGuard } from '@/components/CashBoxGuard'; // Removed - using money boxes only
 import { 
   Plus, 
   Search, 
@@ -103,7 +103,7 @@ const SupplierPaymentReceipts = () => {
   // Load data
   useEffect(() => {
     loadData();
-  }, [pagination.page, filters]);
+  }, [pagination?.page, filters]);
 
   // Load money boxes
   useEffect(() => {
@@ -119,10 +119,15 @@ const SupplierPaymentReceipts = () => {
         supplierPaymentReceiptsService.getStatistics(filters)
       ]);
 
-      setReceipts(receiptsData.data);
-      setPagination(receiptsData.pagination);
-      setSuppliers(suppliersData);
-      setStatistics(statsData);
+      setReceipts(receiptsData.data || []);
+      setPagination(receiptsData.pagination || {
+        page: 1,
+        limit: 10,
+        total: 0,
+        totalPages: 0
+      });
+      setSuppliers(suppliersData || []);
+      setStatistics(statsData || null);
     } catch (error: any) {
       console.error('Error loading data:', error);
       
@@ -361,8 +366,7 @@ const SupplierPaymentReceipts = () => {
   }
 
   return (
-    <CashBoxGuard>
-      <div className="min-w-full mx-auto p-6 space-y-6">
+    <div className="min-w-full mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -987,7 +991,6 @@ const SupplierPaymentReceipts = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </CashBoxGuard>
   );
 };
 

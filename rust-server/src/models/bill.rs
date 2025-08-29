@@ -330,6 +330,7 @@ pub struct BillsQuery {
     pub limit: Option<i32>,
     pub customer_id: Option<i64>,
     pub supplier_id: Option<i64>,
+    pub delegate_id: Option<i64>,
     pub payment_status: Option<String>,
     pub bill_type: Option<String>,
     pub start_date: Option<String>,

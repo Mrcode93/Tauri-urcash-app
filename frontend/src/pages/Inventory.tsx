@@ -479,7 +479,7 @@ const ProductForm = ({ onSubmit, formData, setFormData, autoFocus, categories, s
             </SelectTrigger>
             <SelectContent>
               {stocks && stocks.length > 0 ? (
-                stocks.map((stock) => (
+                stocks?.map((stock) => (
                   <SelectItem key={stock.id} value={String(stock.id)}>
                     {stock.name} {stock.is_main_stock && '(رئيسي)'}
                   </SelectItem>
@@ -927,8 +927,8 @@ const Inventory = () => {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Use server-side filtered results directly
-  const filteredProducts = Array.isArray(products) ? products : [];
+  // Use server-side filtered results directly with defensive filtering
+  const filteredProducts = Array.isArray(products) ? products.filter(product => product && typeof product === 'object' && product.id) : [];
 
   // Remove debug pagination logs to prevent console flooding when scrolling
 
@@ -1940,21 +1940,21 @@ const Inventory = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredProducts.map((product, idx) => (
+                  filteredProducts.map((product, idx) => product ? (
                     <tr
                       key={product.id}
                       className={`transition-colors duration-150 hover:bg-blue-50 border-b border-gray-100 ${
-                        product.current_stock <= product.min_stock ? 'bg-red-50' : 
-                        product.expiry_date && new Date(product.expiry_date) < new Date() ? 'bg-red-100' : 
+                        (product.current_stock !== undefined && product.min_stock !== undefined && product.current_stock <= product.min_stock) ? 'bg-red-50' : 
+                        (product.expiry_date && new Date(product.expiry_date) < new Date()) ? 'bg-red-100' : 
                         idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                       }`}
                     >
                       <td className="py-3 px-4 font-medium text-base">
                         <div className="flex items-center gap-2">
                           <span>
-                            {searchTerm ? highlightText(product.name, searchTerm) : product.name}
+                            {searchTerm ? highlightText(product.name || '', searchTerm) : (product.name || 'غير محدد')}
                           </span>
-                          {product.total_purchased > 0 && (
+                          {(product.total_purchased || 0) > 0 && (
                             <div className="relative group">
                               <ShoppingCart className="h-4 w-4 text-blue-500" />
                               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
@@ -1970,13 +1970,13 @@ const Inventory = () => {
                       <td className="py-3 px-4 text-gray-700">
                         {searchTerm ? highlightText(product.company_name || '', searchTerm) : product.company_name}
                       </td>
-                      <td className="py-3 px-4 text-gray-700">{product.unit}{product.units_per_box > 1 && ` (${product.units_per_box} في العلبة)`}</td>
-                      <td className="py-3 px-4 font-bold text-blue-700 text-base">{formatCurrency(product.purchase_price)}</td>
-                      <td className="py-3 px-4 font-bold text-green-700 text-base">{formatCurrency(product.selling_price)}</td>
+                      <td className="py-3 px-4 text-gray-700">{product.unit || 'قطعة'}{(product.units_per_box || 1) > 1 && ` (${product.units_per_box} في العلبة)`}</td>
+                      <td className="py-3 px-4 font-bold text-blue-700 text-base">{formatCurrency(product.purchase_price || 0)}</td>
+                      <td className="py-3 px-4 font-bold text-green-700 text-base">{formatCurrency(product.selling_price || 0)}</td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-                          <span>{product.current_stock}</span>
-                          {product.current_stock <= product.min_stock && (
+                          <span>{product.current_stock || 0}</span>
+                          {((product.current_stock || 0) <= (product.min_stock || 0)) && (product.current_stock !== undefined && product.min_stock !== undefined) && (
                             <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">منخفض</span>
                           )}
                         </div>
@@ -1985,7 +1985,7 @@ const Inventory = () => {
                         {product.expiry_date ? (
                           <div className="flex items-center gap-2">
                             <span>{formatDate(product.expiry_date)}</span>
-                            {new Date(product.expiry_date) < new Date() && (
+                            {product.expiry_date && new Date(product.expiry_date) < new Date() && (
                               <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">منتهي</span>
                             )}
                           </div>
@@ -2098,7 +2098,7 @@ const Inventory = () => {
                         </div>
                       </td>
                     </tr>
-                  ))
+                  ) : null)
                 )}
               </tbody>
             </table>

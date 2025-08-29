@@ -672,4 +672,69 @@ impl StockMovementsService {
         // TODO: Implement bulk create movements
         Ok(serde_json::json!({}))
     }
+
+    // Get product movements
+    pub async fn get_product_movements(
+        &self,
+        db: &Database,
+        product_id: i64,
+        start_date: Option<String>,
+        end_date: Option<String>,
+        movement_type: Option<String>,
+    ) -> Result<Vec<StockMovementWithDetails>> {
+        let mut where_conditions = vec![format!("sm.product_id = {}", product_id)];
+        let mut query_params: Vec<String> = vec![];
+
+        if let Some(start_date) = start_date {
+            where_conditions.push("sm.movement_date >= ?".to_string());
+            query_params.push(start_date);
+        }
+
+        if let Some(end_date) = end_date {
+            where_conditions.push("sm.movement_date <= ?".to_string());
+            query_params.push(end_date);
+        }
+
+        if let Some(movement_type) = movement_type {
+            where_conditions.push("sm.movement_type = ?".to_string());
+            query_params.push(movement_type);
+        }
+
+        let where_clause = where_conditions.join(" AND ");
+
+        let query = format!(
+            r#"
+            SELECT 
+                sm.*,
+                p.name as product_name,
+                p.sku as product_sku,
+                fs.name as from_stock_name,
+                ts.name as to_stock_name,
+                u.name as created_by_name
+            FROM stock_movements sm
+            LEFT JOIN products p ON sm.product_id = p.id
+            LEFT JOIN stocks fs ON sm.from_stock_id = fs.id
+            LEFT JOIN stocks ts ON sm.to_stock_id = ts.id
+            LEFT JOIN users u ON sm.created_by = u.id
+            WHERE {}
+            ORDER BY sm.movement_date DESC, sm.created_at DESC
+            "#,
+            where_clause
+        );
+
+        let mut query_stmt = sqlx::query(&query);
+        for param in &query_params {
+            query_stmt = query_stmt.bind(param);
+        }
+
+        let movements_rows = query_stmt.fetch_all(&db.pool).await?;
+
+        let mut movements = Vec::new();
+        for row in movements_rows {
+            let movement = self.map_stock_movement_row_to_with_details(row).await?;
+            movements.push(movement);
+        }
+
+        Ok(movements)
+    }
 }

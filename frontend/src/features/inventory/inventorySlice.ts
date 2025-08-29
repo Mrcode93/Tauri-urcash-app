@@ -82,6 +82,7 @@ export const getProducts = createAsyncThunk<{ products: Product[]; total: number
   async ({ page = 1, limit = 50, cache = true, ...filters }, { rejectWithValue }) => {
     try {
       const result = await inventoryService.getAllProducts({ page, limit, cache, ...filters });
+      
       return result;
     } catch (error) {
       const errorMessage = handleAsyncError(error, 'فشل في جلب المنتجات');
@@ -432,8 +433,20 @@ const inventorySlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(getExpiringProducts.fulfilled, (state) => {
+      .addCase(getExpiringProducts.fulfilled, (state, action) => {
         state.loading = false;
+        // Add expiring products to the existing items array
+        const expiringProducts = action.payload || [];
+        if (Array.isArray(expiringProducts)) {
+          expiringProducts.forEach(product => {
+            const existingIndex = state.items.findIndex(item => item.id === product.id);
+            if (existingIndex !== -1) {
+              state.items[existingIndex] = product;
+            } else {
+              state.items.push(product);
+            }
+          });
+        }
       })
       .addCase(getExpiringProducts.rejected, (state, action) => {
         state.loading = false;
@@ -447,15 +460,17 @@ const inventorySlice = createSlice({
       .addCase(getLowStockProducts.fulfilled, (state, action) => {
         state.loading = false;
         // Add low stock products to the existing items array
-        const lowStockProducts = action.payload;
-        lowStockProducts.forEach(product => {
-          const existingIndex = state.items.findIndex(item => item.id === product.id);
-          if (existingIndex !== -1) {
-            state.items[existingIndex] = product;
-          } else {
-            state.items.push(product);
-          }
-        });
+        const lowStockProducts = action.payload || [];
+        if (Array.isArray(lowStockProducts)) {
+          lowStockProducts.forEach(product => {
+            const existingIndex = state.items.findIndex(item => item.id === product.id);
+            if (existingIndex !== -1) {
+              state.items[existingIndex] = product;
+            } else {
+              state.items.push(product);
+            }
+          });
+        }
       })
       .addCase(getLowStockProducts.rejected, (state, action) => {
         state.loading = false;

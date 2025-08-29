@@ -45,7 +45,7 @@ import {
 } from "@/features/expenses/expensesSlice";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Expense } from "@/features/expenses/expensesService";
-import { CashBoxGuard } from "@/components/CashBoxGuard";
+// import { CashBoxGuard } from "@/components/CashBoxGuard"; // Removed - using money boxes only
 
 const Expenses = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -138,7 +138,7 @@ const Expenses = () => {
     }
     
     // Check balance before creating expense
-    if (formData.moneyBoxId && formData.moneyBoxId !== 'cash_box') {
+            if (formData.moneyBoxId) {
       const selectedMoneyBox = moneyBoxes.find(box => box.id.toString() === formData.moneyBoxId);
       if (selectedMoneyBox && selectedMoneyBox.amount < parseFloat(formData.amount)) {
         toast.error(
@@ -151,8 +151,11 @@ const Expenses = () => {
     
     try {
       const expenseData = {
-        ...formData,
         amount: parseFloat(formData.amount),
+        description: formData.description,
+        category: formData.category,
+        date: formData.date,
+        money_box_id: formData.moneyBoxId ? parseInt(formData.moneyBoxId) : 0,
       };
 
       if (selectedExpense) {
@@ -225,7 +228,7 @@ const Expenses = () => {
       description: expense.description,
       category: expense.category,
       date: expense.date,
-      moneyBoxId: expense.money_box_id || "cash_box",
+              moneyBoxId: expense.money_box_id || "",
     });
     setIsEditModalOpen(true);
   };
@@ -332,8 +335,7 @@ const Expenses = () => {
   }
 
   return (
-    <CashBoxGuard>
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">المصروفات</h1>
           <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
@@ -425,7 +427,6 @@ const Expenses = () => {
                       <SelectValue placeholder="اختر صندوق المال" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cash_box">صندوق النقد</SelectItem>
                       {moneyBoxes.map((moneyBox) => (
                         <SelectItem key={moneyBox.id} value={moneyBox.id.toString()}>
                           {moneyBox.name} - {formatCurrency(moneyBox.amount)}
@@ -436,7 +437,7 @@ const Expenses = () => {
                   {formErrors.moneyBoxId && (
                     <p className="text-red-500 text-sm mt-1">{formErrors.moneyBoxId}</p>
                   )}
-                  {formData.moneyBoxId && formData.moneyBoxId !== 'cash_box' && (
+                  {formData.moneyBoxId && (
                     <div className="mt-2 p-2 bg-blue-50 rounded-md">
                       <p className="text-sm text-blue-700">
                         الرصيد المتوفر: {formatCurrency(moneyBoxes.find(box => box.id.toString() === formData.moneyBoxId)?.amount || 0)}
@@ -629,7 +630,6 @@ const Expenses = () => {
                     <SelectValue placeholder="اختر صندوق المال" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash_box">صندوق النقد</SelectItem>
                     {moneyBoxes.map((moneyBox) => (
                       <SelectItem key={moneyBox.id} value={moneyBox.id.toString()}>
                         {moneyBox.name} - {formatCurrency(moneyBox.amount)}
@@ -640,7 +640,7 @@ const Expenses = () => {
                 {formErrors.moneyBoxId && (
                   <p className="text-red-500 text-sm mt-1">{formErrors.moneyBoxId}</p>
                 )}
-                {formData.moneyBoxId && formData.moneyBoxId !== 'cash_box' && (
+                {formData.moneyBoxId && (
                   <div className="mt-2 p-2 bg-blue-50 rounded-md">
                     <p className="text-sm text-blue-700">
                       الرصيد المتوفر: {formatCurrency(moneyBoxes.find(box => box.id.toString() === formData.moneyBoxId)?.amount || 0)}
@@ -682,8 +682,7 @@ const Expenses = () => {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-    </CashBoxGuard>
+    </div>
   );
 };
 

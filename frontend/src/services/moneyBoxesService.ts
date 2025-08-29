@@ -3,7 +3,7 @@ import api from '@/lib/api';
 export interface MoneyBox {
   id: number;
   name: string;
-  amount: number;
+  balance: number;
   notes?: string;
   created_by?: number;
   created_by_name?: string;
@@ -26,20 +26,20 @@ export interface MoneyBoxTransaction {
 }
 
 export interface MoneyBoxSummary {
-  moneyBox: MoneyBox;
-  statistics: {
-    total_transactions: number;
-    total_deposits: number;
-    total_withdrawals: number;
-    current_balance: number;
-    last_transaction_date?: string;
-  };
+  id: number;
+  name: string;
+  amount: number;
+  total_deposits: number;
+  total_withdrawals: number;
+  total_transactions: number;
 }
 
 export interface AllMoneyBoxesSummary {
-  moneyBoxes: MoneyBoxSummary[];
-  totalBalance: number;
-  totalBoxes: number;
+  total_boxes: number;
+  total_balance: number;
+  total_deposits: number;
+  total_withdrawals: number;
+  total_transactions: number;
 }
 
 export interface CreateMoneyBoxData {
@@ -54,7 +54,7 @@ export interface UpdateMoneyBoxData {
 }
 
 export interface AddTransactionData {
-  type: 'deposit' | 'withdraw' | 'transfer_in' | 'transfer_out';
+  type_: 'deposit' | 'withdraw' | 'transfer_in' | 'transfer_out';
   amount: number;
   notes?: string;
 }
@@ -70,6 +70,7 @@ class MoneyBoxesService {
   // Get all money boxes
   async getAllMoneyBoxes(): Promise<MoneyBox[]> {
     const response = await api.get('/money-boxes');
+    console.log(response.data);
     return response.data.data;
   }
 
@@ -111,6 +112,7 @@ class MoneyBoxesService {
     const response = await api.get(`/money-boxes/${id}/transactions`, {
       params: { limit, offset }
     });
+    console.log('transactions', response.data);
     return response.data.data;
   }
 
@@ -132,7 +134,13 @@ class MoneyBoxesService {
     toBox: MoneyBox;
   }> {
     const response = await api.post('/money-boxes/transfer', data);
-    return response.data.data;
+    const responseData = response.data.data;
+    return {
+      success: true,
+      message: responseData.message,
+      fromBox: responseData.from_box,
+      toBox: responseData.to_box
+    };
   }
 
   // Get money box summary

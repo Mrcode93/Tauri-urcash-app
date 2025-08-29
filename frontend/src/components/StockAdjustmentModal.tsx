@@ -29,7 +29,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
   onSuccess
 }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { suppliers } = useSelector((state: RootState) => state.suppliers);
+  const { suppliers = [] } = useSelector((state: RootState) => state.suppliers);
   const [loading, setLoading] = useState(false);
   const [adjustmentType, setAdjustmentType] = useState<'add' | 'subtract'>('add');
   const [quantity, setQuantity] = useState('');
@@ -41,10 +41,10 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
 
   // Load suppliers when modal opens
   useEffect(() => {
-    if (open && suppliers.length === 0) {
+    if (open && suppliers && suppliers.length === 0) {
       dispatch(getSuppliers());
     }
-  }, [open, suppliers.length, dispatch]);
+  }, [open, suppliers, dispatch]);
 
   // Set default purchase price when product changes
   useEffect(() => {
@@ -237,7 +237,7 @@ const StockAdjustmentModal: React.FC<StockAdjustmentModalProps> = ({
                             <SelectValue placeholder="اختر المورد" />
                           </SelectTrigger>
                           <SelectContent>
-                            {suppliers.map((supplier) => (
+                            {suppliers && suppliers.map((supplier) => (
                               <SelectItem key={supplier.id} value={supplier.id.toString()}>
                                 {supplier.name}
                               </SelectItem>

@@ -38,8 +38,9 @@ export const fetchAllMoneyBoxes = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       return await moneyBoxesService.getAllMoneyBoxes();
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch money boxes');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في جلب صناديق المال';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -49,8 +50,9 @@ export const fetchMoneyBoxById = createAsyncThunk(
   async (id: number, { rejectWithValue }) => {
     try {
       return await moneyBoxesService.getMoneyBoxById(id);
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch money box');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في جلب صندوق المال';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -61,8 +63,9 @@ export const createMoneyBox = createAsyncThunk(
     try {
       const result = await moneyBoxesService.createMoneyBox(data);
       return { moneyBox: result, message: 'تم إنشاء صندوق المال بنجاح' };
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create money box');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في إنشاء صندوق المال';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -73,8 +76,9 @@ export const updateMoneyBox = createAsyncThunk(
     try {
       const result = await moneyBoxesService.updateMoneyBox(id, data);
       return { moneyBox: result, message: 'تم تحديث صندوق المال بنجاح' };
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update money box');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في تحديث صندوق المال';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -85,8 +89,9 @@ export const deleteMoneyBox = createAsyncThunk(
     try {
       const result = await moneyBoxesService.deleteMoneyBox(id);
       return { id, message: result.message };
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete money box');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في حذف صندوق المال';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -96,8 +101,9 @@ export const fetchMoneyBoxTransactions = createAsyncThunk(
   async ({ id, limit = 50, offset = 0 }: { id: number; limit?: number; offset?: number }, { rejectWithValue }) => {
     try {
       return await moneyBoxesService.getMoneyBoxTransactions(id, limit, offset);
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch transactions');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في جلب العمليات';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -107,9 +113,13 @@ export const addMoneyBoxTransaction = createAsyncThunk(
   async ({ id, data }: { id: number; data: AddTransactionData }, { rejectWithValue }) => {
     try {
       const result = await moneyBoxesService.addTransaction(id, data);
-        return { result };
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to add transaction');
+      return { 
+        result,
+        message: 'تم إضافة العملية بنجاح'
+      };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في إضافة العملية';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -120,8 +130,9 @@ export const transferBetweenMoneyBoxes = createAsyncThunk(
     try {
       const result = await moneyBoxesService.transferBetweenBoxes(data);
       return { result, message: result.message };
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to transfer between boxes');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في التحويل بين الصناديق';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -131,8 +142,9 @@ export const fetchMoneyBoxSummary = createAsyncThunk(
   async (id: number, { rejectWithValue }) => {
     try {
       return await moneyBoxesService.getMoneyBoxSummary(id);
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch summary');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في جلب الملخص';
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -142,8 +154,9 @@ export const fetchAllMoneyBoxesSummary = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       return await moneyBoxesService.getAllMoneyBoxesSummary();
-    } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch summary');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'فشل في جلب ملخص الصناديق';
+      return rejectWithValue(errorMessage);
     }
   }
 );

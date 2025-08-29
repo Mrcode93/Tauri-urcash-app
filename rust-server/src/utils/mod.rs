@@ -1,2 +1,3 @@
-// Utility modules will be added here
-// For now, we'll keep it empty to avoid compilation errors
+pub mod sku_generator;
+
+pub use sku_generator::*;

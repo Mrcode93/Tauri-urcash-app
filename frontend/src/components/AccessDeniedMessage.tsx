@@ -69,7 +69,6 @@ const AccessDeniedMessage: React.FC<AccessDeniedMessageProps> = ({
       '/installments': 'الأقساط',
       '/customer-receipts': 'سند قبض',
       '/supplier-payment-receipts': 'سند صرف',
-      '/cash-box': 'صندوق النقد',
       '/admin-cash-box': 'إدارة الصناديق',
       '/settings': 'الإعدادات',
       '/admin-profiles': 'إدارة المشرفين',

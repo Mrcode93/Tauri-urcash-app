@@ -88,6 +88,7 @@ const Dashboard = () => {
     { id: 'purchases', name: 'المشتريات', path: '/purchases', icon: 'Truck', enabled: true, active: true, category: 'purchases' },
     { id: 'inventory', name: 'المنتجات', path: '/inventory', icon: 'Package', enabled: true, active: true, category: 'inventory' },
     { id: 'bills', name: 'الفواتير', path: '/bills', icon: 'ClipboardList', enabled: true, active: true, category: 'bills' },
+    { id: 'admin-cash-box', name: 'إدارة الصناديق', path: '/admin-cash-box', icon: 'Settings', enabled: true, active: true, category: 'admin' },
     { id: 'customers', name: 'العملاء', path: '/customers', icon: 'Users', enabled: true, active: true, category: 'customers' },
     { id: 'suppliers', name: 'الموردين', path: '/suppliers', icon: 'Store', enabled: true, active: true, category: 'suppliers' },
     { id: 'customer-receipts', name: 'سند قبض', path: '/customer-receipts', icon: 'Receipt', enabled: true, active: true, category: 'receipts' },
@@ -744,7 +745,7 @@ const Dashboard = () => {
         }}
       >
         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center">
-          <div className="flex items-center gap-4 text-sm mb-4 md:mb-0" style={{ color: colors.text.secondary }}>
+          <div className="flex items-center gap-4 text-sm mb-4 md:mb-0" style={{ color: colors.text.primary }}>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-500"></div>
               <span>© {new Date().getFullYear()} URUX System</span>

@@ -64,7 +64,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InstallmentsWrapper } from '@/components/PremiumFeatureWrapper';
-import { CashBoxGuard } from '@/components/CashBoxGuard';
+// import { CashBoxGuard } from '@/components/CashBoxGuard'; // Removed - using money boxes only
 import { usePrintBill } from '@/hooks/usePrintBill';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -516,24 +516,18 @@ const InstallmentPlanRow = memo(({
                               <td className="py-2 px-3 min-w-[140px]">
                                 <div className="flex gap-1 justify-start">
                                   {installment.payment_status !== 'paid' && canEditInstallments && (
-                                    <CashBoxGuard 
-                                      operationType="دفع قسط"
-                                      amount={(installment.amount || 0) - (installment.paid_amount || 0)}
-                                      showWarning={false}
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onPayment(installment);
+                                      }}
+                                      className="h-8 px-2 text-xs bg-green-50 border-green-200 hover:bg-green-100"
                                     >
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          onPayment(installment);
-                                        }}
-                                        className="h-8 px-2 text-xs bg-green-50 border-green-200 hover:bg-green-100"
-                                      >
-                                        <DollarSign className="h-3 w-3 ml-1" />
-                                        دفع
-                                      </Button>
-                                    </CashBoxGuard>
+                                      <DollarSign className="h-3 w-3 ml-1" />
+                                      دفع
+                                    </Button>
                                   )}
                                   {canEditInstallments && (
                                     <Button 
@@ -1400,8 +1394,7 @@ const Installments = () => {
 
   return (
     <InstallmentsWrapper>
-      <CashBoxGuard operationType="دفع قسط">
-        <div className="min-w-full mx-auto px-4 py-8" dir="rtl">
+      <div className="min-w-full mx-auto px-4 py-8" dir="rtl">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CreditCard className="h-6 w-6" />
@@ -1417,18 +1410,13 @@ const Installments = () => {
                 <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
                 تحديث
               </Button>
-              <CashBoxGuard 
-                operationType="إنشاء خطة أقساط"
-                showWarning={false}
-              >
-                <Button
-                  onClick={() => openModal('plan')}
-              className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
-            >
-              <ShoppingCart className="h-4 w-4" />
-              إنشاء خطة أقساط
-            </Button>
-              </CashBoxGuard>
+              <Button
+                onClick={() => openModal('plan')}
+            className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            إنشاء خطة أقساط
+          </Button>
               {canAddInstallments && (
               <Button
                   onClick={() => openModal('selectDebt')}
@@ -1648,13 +1636,7 @@ const Installments = () => {
             </DialogHeader>
             
             {selectedInstallment && (
-              <CashBoxGuard 
-                operationType="تسجيل دفع قسط"
-                amount={paymentFormData.paid_amount}
-                showWarning={true}
-                key={`payment-guard-${selectedInstallment.id}-${modals.payment}`}
-              >
-                <form onSubmit={handlePayment} className="space-y-4">
+              <form onSubmit={handlePayment} className="space-y-4">
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
@@ -1842,7 +1824,6 @@ const Installments = () => {
                   </div>
                 )}
               </div>
-              </CashBoxGuard>
             )}
           </DialogContent>
         </Dialog>
@@ -2522,7 +2503,7 @@ const Installments = () => {
           }}
         />
         </div>
-      </CashBoxGuard>
+      </div>
     </InstallmentsWrapper>
   );
 };

@@ -5,10 +5,28 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use crate::AppState;
 use crate::models::stock::*;
 use tracing::{info, warn, error};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AddProductToStockRequestFrontend {
+    #[serde(deserialize_with = "deserialize_string_to_i64")]
+    pub product_id: i64,
+    pub quantity: i64,
+    pub location_in_stock: Option<String>,
+}
+
+fn deserialize_string_to_i64<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    let s = String::deserialize(deserializer)?;
+    s.parse::<i64>().map_err(D::Error::custom)
+}
 
 // Get all stocks
 async fn get_stocks(
@@ -261,29 +279,36 @@ async fn get_stock_stats(
 async fn add_product_to_stock(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(request): Json<AddProductToStockRequest>,
+    Json(frontend_request): Json<AddProductToStockRequestFrontend>,
 ) -> impl IntoResponse {
     // Validate required fields
-    if request.quantity <= 0 {
+    if frontend_request.quantity <= 0 {
         return Json(json!({
             "success": false,
-            "message": "Product ID and quantity are required"
+            "message": "الكمية يجب أن تكون أكبر من صفر"
         }));
     }
+
+    // Convert frontend request to backend request
+    let request = AddProductToStockRequest {
+        product_id: frontend_request.product_id,
+        quantity: frontend_request.quantity,
+        location_in_stock: frontend_request.location_in_stock,
+    };
 
     match state.stock_service.add_product(&state.db, id, request).await {
         Ok(_) => {
             info!("Product added to stock successfully");
             Json(json!({
                 "success": true,
-                "message": "Product added to stock successfully"
+                "message": "تم إضافة المنتج إلى المخزن بنجاح"
             }))
         },
         Err(err) => {
             error!("Failed to add product to stock: {}", err);
             Json(json!({
                 "success": false,
-                "message": err.to_string()
+                "message": format!("فشل في إضافة المنتج إلى المخزن: {}", err)
             }))
         }
     }

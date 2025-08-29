@@ -273,31 +273,34 @@ export const getAllDelegates = async (
 
   const response = await api.get(`/delegates?${params}`);
   console.log(response.data);
-  return response.data.data;
+  return {
+    delegates: response.data.data,
+    pagination: response.data.pagination
+  };
 };
 
 // Get delegate by ID
 export const getDelegateById = async (id: number): Promise<Delegate> => {
   const response = await api.get(`/delegates/${id}`);
-  return response.data;
+  return response.data.data;
 };
 
 // Create new delegate
 export const createDelegate = async (data: CreateDelegateData): Promise<{ id: number }> => {
   const response = await api.post('/delegates', data);
-  return response.data.data;
+  return response.data;
 };
 
 // Update delegate
 export const updateDelegate = async (id: number, data: UpdateDelegateData): Promise<{ success: boolean }> => {
   const response = await api.put(`/delegates/${id}`, data);
-  return response.data.data;
+  return response.data;
 };
 
 // Delete delegate
 export const deleteDelegate = async (id: number): Promise<{ success: boolean }> => {
   const response = await api.delete(`/delegates/${id}`);
-  return response.data.data;
+  return response.data;
 };
 
 // ===== DELEGATE SALES MANAGEMENT =====
@@ -305,7 +308,7 @@ export const deleteDelegate = async (id: number): Promise<{ success: boolean }> 
 // Create delegate sale
 export const createDelegateSale = async (delegateId: number, data: CreateDelegateSaleData): Promise<{ id: number }> => {
   const response = await api.post(`/delegates/${delegateId}/sales`, data);
-  return response.data.data;
+  return response.data;
 };
 
 // Get delegate sales
@@ -320,7 +323,8 @@ export const getDelegateSales = async (
   });
 
   const response = await api.get(`/delegates/${delegateId}/sales?${params}`);
-  return response.data.data;
+
+  return response.data;
 };
 
 // ===== DELEGATE COLLECTIONS MANAGEMENT =====
@@ -328,7 +332,7 @@ export const getDelegateSales = async (
 // Create delegate collection
 export const createDelegateCollection = async (delegateId: number, data: CreateDelegateCollectionData): Promise<{ id: number }> => {
   const response = await api.post(`/delegates/${delegateId}/collections`, data);
-  return response.data.data;
+  return response.data;
 };
 
 // Get delegate collections
@@ -343,7 +347,8 @@ export const getDelegateCollections = async (
   });
 
   const response = await api.get(`/delegates/${delegateId}/collections?${params}`);
-  return response.data.data;
+  console.log(response.data);
+  return response.data;
 };
 
 // ===== DELEGATE COMMISSION MANAGEMENT =====
@@ -366,7 +371,7 @@ export const calculateDelegateCommission = async (
 // Create commission payment
 export const createCommissionPayment = async (delegateId: number, data: CreateCommissionPaymentData): Promise<{ id: number }> => {
   const response = await api.post(`/delegates/${delegateId}/commission-payments`, data);
-  return response.data.data;
+  return response.data;
 };
 
 // ===== DELEGATE PERFORMANCE REPORTS =====
@@ -377,7 +382,7 @@ export const generatePerformanceReport = async (
   data: CreatePerformanceReportData
 ): Promise<{ id: number }> => {
   const response = await api.post(`/delegates/${delegateId}/performance-reports`, data);
-  return response.data.data;
+  return response.data;
 };
 
 // Get performance reports
@@ -392,7 +397,7 @@ export const getPerformanceReports = async (
   });
 
   const response = await api.get(`/delegates/${delegateId}/performance-reports?${params}`);
-  return response.data.data;
+  return response.data;
 };
 
 // ===== DELEGATE DASHBOARD =====
@@ -400,7 +405,7 @@ export const getPerformanceReports = async (
 // Get delegate dashboard
 export const getDelegateDashboard = async (delegateId: number): Promise<DelegateDashboard> => {
   const response = await api.get(`/delegates/${delegateId}/dashboard`);
-  return response.data.data;
+  return response.data;
 };
 
 // ===== CUSTOMER ASSIGNMENTS =====
@@ -422,7 +427,7 @@ export const getDelegatesByCustomerId = async (customerId: number): Promise<Dele
 // Bulk generate performance reports
 export const bulkGeneratePerformanceReports = async (data: CreatePerformanceReportData): Promise<Array<{ delegate_id: number; success: boolean; report_id?: number; error?: string }>> => {
   const response = await api.post('/delegates/bulk/performance-reports', data);
-  return response.data.data;
+  return response.data;
 };
 
 // ===== ANALYTICS =====
@@ -435,5 +440,5 @@ export const getDelegateAnalytics = async (periodStart: string, periodEnd: strin
   });
 
   const response = await api.get(`/delegates/analytics/summary?${params}`);
-  return response.data.data;
+  return response.data;
 };

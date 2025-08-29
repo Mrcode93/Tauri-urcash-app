@@ -5,7 +5,7 @@ import { createSelector } from '@reduxjs/toolkit';
 import { getProductsForPOS } from '@/features/inventory/inventorySlice';
 import { getCustomers, createCustomer } from '@/features/customers/customersSlice';
 import { createSale } from '@/features/sales/salesSlice';
-import { CashBoxGuard } from '@/components/CashBoxGuard';
+// import { CashBoxGuard } from '@/components/CashBoxGuard'; // Removed - using money boxes only
 import type { SaleData, CreateSaleData } from '@/features/sales/salesService';
 import type { Customer } from '@/features/customers/customersService';
 import type { Product } from '@/features/inventory/inventoryService';
@@ -1034,11 +1034,10 @@ const POSMain = () => {
   }
 
   return (
-    <CashBoxGuard operationType="عملية بيع">
-      <div 
-        className="min-h-screen p-4 flex flex-col"
-        style={{ backgroundColor: colors.background.pos }}
-      >
+    <div 
+      className="min-h-screen p-4 flex flex-col"
+      style={{ backgroundColor: colors.background.pos }}
+    >
         {/* Header */}
         <POSHeader
           searchQuery={searchQuery}
@@ -1181,8 +1180,7 @@ const POSMain = () => {
         />
 
 
-      </div>
-    </CashBoxGuard>
+    </div>
   );
 };
 

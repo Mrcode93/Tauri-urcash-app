@@ -126,6 +126,10 @@ export const suppliersSlice = createSlice({
       state.isSuccess = false;
       state.isError = false;
       state.message = '';
+      // Ensure suppliers remains an array
+      if (!Array.isArray(state.suppliers)) {
+        state.suppliers = [];
+      }
     },
     setSelectedSupplier: (state, action) => {
       state.selectedSupplier = action.payload;
@@ -146,7 +150,8 @@ export const suppliersSlice = createSlice({
       .addCase(getSuppliers.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
-        state.suppliers = action.payload;
+        // Ensure we always set an array
+        state.suppliers = Array.isArray(action.payload) ? action.payload : [];
       })
       .addCase(getSuppliers.rejected, (state, action) => {
         state.isLoading = false;
@@ -178,6 +183,10 @@ export const suppliersSlice = createSlice({
       .addCase(createSupplier.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
+        // Ensure suppliers is an array before pushing
+        if (!Array.isArray(state.suppliers)) {
+          state.suppliers = [];
+        }
         state.suppliers.push(action.payload);
       })
       .addCase(createSupplier.rejected, (state, action) => {
@@ -202,6 +211,10 @@ export const suppliersSlice = createSlice({
       .addCase(updateSupplier.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
+        // Ensure suppliers is an array before mapping
+        if (!Array.isArray(state.suppliers)) {
+          state.suppliers = [];
+        }
         state.suppliers = state.suppliers.map((supplier) =>
           supplier.id === action.payload.id ? action.payload : supplier
         );
@@ -229,6 +242,10 @@ export const suppliersSlice = createSlice({
       .addCase(deleteSupplier.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
+        // Ensure suppliers is an array before filtering
+        if (!Array.isArray(state.suppliers)) {
+          state.suppliers = [];
+        }
         state.suppliers = state.suppliers.filter((supplier) => supplier.id !== action.payload);
       })
       .addCase(deleteSupplier.rejected, (state, action) => {
@@ -245,7 +262,8 @@ export const suppliersSlice = createSlice({
       .addCase(searchSuppliers.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isSuccess = true;
-        state.suppliers = action.payload;
+        // Ensure we always set an array
+        state.suppliers = Array.isArray(action.payload) ? action.payload : [];
       })
       .addCase(searchSuppliers.rejected, (state, action) => {
         state.isLoading = false;

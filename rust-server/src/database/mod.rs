@@ -214,6 +214,8 @@ impl Database {
         self.create_employees_table().await?;
         info!("Creating suppliers table...");
         self.create_suppliers_table().await?;
+        info!("Creating supplier payment receipts table...");
+        self.create_supplier_payment_receipts_table().await?;
         info!("Creating categories table...");
         self.create_categories_table().await?;
         info!("Creating stocks table...");
@@ -579,6 +581,32 @@ impl Database {
                 is_active INTEGER DEFAULT 1 CHECK(is_active IN (0, 1)),
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            "#
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_supplier_payment_receipts_table(&self) -> Result<()> {
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS supplier_payment_receipts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                receipt_number TEXT NOT NULL UNIQUE,
+                supplier_id INTEGER NOT NULL,
+                purchase_id INTEGER,
+                receipt_date DATE NOT NULL,
+                amount REAL NOT NULL CHECK(amount > 0),
+                payment_method TEXT NOT NULL,
+                reference_number TEXT,
+                notes TEXT,
+                money_box_id TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
+                FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE SET NULL
             )
             "#
         )
@@ -1186,9 +1214,10 @@ impl Database {
             CREATE TABLE IF NOT EXISTS customer_receipts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 customer_id INTEGER NOT NULL,
+                sale_id INTEGER,
                 receipt_no TEXT UNIQUE NOT NULL,
                 receipt_date DATE NOT NULL,
-                amount DECIMAL(12,2) NOT NULL CHECK(amount > 0),
+                amount REAL NOT NULL CHECK(amount > 0),
                 payment_method TEXT CHECK(payment_method IN ('cash', 'card', 'bank_transfer', 'check')) DEFAULT 'cash',
                 reference_no TEXT,
                 notes TEXT,
@@ -1197,6 +1226,7 @@ impl Database {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
+                FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE SET NULL,
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
                 FOREIGN KEY (money_box_id) REFERENCES money_boxes(id) ON DELETE SET NULL
             )
@@ -1207,33 +1237,7 @@ impl Database {
         Ok(())
     }
 
-    // Supplier Payment Receipts table
-    async fn create_supplier_payment_receipts_table(&self) -> Result<()> {
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS supplier_payment_receipts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                supplier_id INTEGER NOT NULL,
-                receipt_no TEXT UNIQUE NOT NULL,
-                receipt_date DATE NOT NULL,
-                amount DECIMAL(12,2) NOT NULL CHECK(amount > 0),
-                payment_method TEXT CHECK(payment_method IN ('cash', 'card', 'bank_transfer', 'check')) DEFAULT 'cash',
-                reference_no TEXT,
-                notes TEXT,
-                created_by INTEGER,
-                money_box_id INTEGER,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE RESTRICT,
-                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
-                FOREIGN KEY (money_box_id) REFERENCES money_boxes(id) ON DELETE SET NULL
-            )
-            "#
-        )
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
+
 
     // Inventory Movements table
     async fn create_inventory_movements_table(&self) -> Result<()> {
@@ -1557,8 +1561,7 @@ impl Database {
                 { "id": "pos", "name": "نقطة البيع", "path": "/pos", "icon": "ShoppingCart", "enabled": true, "active": true },
                 { "id": "sales", "name": "المبيعات", "path": "/sales", "icon": "DollarSign", "enabled": true, "active": true },
                 { "id": "purchases", "name": "المشتريات", "path": "/purchases", "icon": "Truck", "enabled": true, "active": true },
-                { "id": "cashbox", "name": "صندوق النقد", "path": "/cash-box", "icon": "DollarSign", "enabled": true, "active": true },
-                { "id": "admin-cashbox", "name": "إدارة الصناديق", "path": "/admin-cash-box", "icon": "Settings", "enabled": true, "active": true, "adminOnly": true },
+                { "id": "admin-cash-box", "name": "إدارة الصناديق", "path": "/admin-cash-box", "icon": "Settings", "enabled": true, "active": true, "adminOnly": true },
                 { "id": "inventory", "name": "المنتجات", "path": "/inventory", "icon": "Package", "enabled": true, "active": true },
                 { "id": "bills", "name": "الفواتير", "path": "/bills", "icon": "ClipboardList", "enabled": true, "active": true },
                 { "id": "stocks", "name": "المخازن", "path": "/stocks", "icon": "Warehouse", "enabled": true, "active": true },

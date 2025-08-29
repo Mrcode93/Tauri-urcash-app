@@ -90,7 +90,8 @@ pub async fn get_all_sale_bills(
             info!("Sale bills retrieved successfully");
             (StatusCode::OK, Json(json!({
                 "success": true,
-                "message": "Sale bills retrieved successfully"
+                "message": "Sale bills retrieved successfully",
+                "data": result
             })))
         }
         Err(e) => {
@@ -369,7 +370,8 @@ pub async fn get_all_purchase_bills(
             info!("Purchase bills retrieved successfully");
             (StatusCode::OK, Json(json!({
                 "success": true,
-                "message": "Purchase bills retrieved successfully"
+                "message": "Purchase bills retrieved successfully",
+                "data": result
             })))
         }
         Err(e) => {
@@ -610,9 +612,9 @@ pub async fn create_return_bill(
 }
 
 pub async fn get_all_return_bills(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     headers: HeaderMap,
-    Query(_query): Query<serde_json::Value>,
+    Query(query): Query<serde_json::Value>,
 ) -> impl IntoResponse {
     // Check authentication
     let auth_header = headers.get("Authorization")
@@ -632,14 +634,131 @@ pub async fn get_all_return_bills(
         }
     };
 
-    // TODO: Implement return bills retrieval
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({
-            "success": false,
-            "error": "Return bills retrieval not implemented yet"
-        })),
-    )
+    // Extract query parameters
+    let page = query.get("page").and_then(|v| v.as_u64()).unwrap_or(1) as i64;
+    let limit = query.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as i64;
+    let offset = (page - 1) * limit;
+
+    // Get sale returns
+    let sale_returns_query = r#"
+        SELECT 
+            id, 'sale' as return_type, return_date, total_amount, status, reason,
+            created_at, updated_at
+        FROM sale_returns 
+        WHERE status != 'cancelled'
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    "#;
+
+    let sale_returns = sqlx::query(sale_returns_query)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db.pool)
+        .await;
+
+    // Get purchase returns
+    let purchase_returns_query = r#"
+        SELECT 
+            id, 'purchase' as return_type, return_date, total_amount, status, reason,
+            created_at, updated_at
+        FROM purchase_returns 
+        WHERE status != 'cancelled'
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    "#;
+
+    let purchase_returns = sqlx::query(purchase_returns_query)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db.pool)
+        .await;
+
+    match (sale_returns, purchase_returns) {
+        (Ok(sale_rows), Ok(purchase_rows)) => {
+            let mut all_returns = Vec::new();
+
+            // Process sale returns
+            for row in sale_rows {
+                let return_bill = json!({
+                    "id": row.get::<i64, _>("id"),
+                    "return_type": "sale",
+                    "return_date": row.get::<String, _>("return_date"),
+                    "total_amount": row.get::<f64, _>("total_amount"),
+                    "status": row.get::<String, _>("status"),
+                    "reason": row.get::<Option<String>, _>("reason"),
+                    "created_at": row.get::<String, _>("created_at"),
+                    "updated_at": row.get::<String, _>("updated_at")
+                });
+                all_returns.push(return_bill);
+            }
+
+            // Process purchase returns
+            for row in purchase_rows {
+                let return_bill = json!({
+                    "id": row.get::<i64, _>("id"),
+                    "return_type": "purchase",
+                    "return_date": row.get::<String, _>("return_date"),
+                    "total_amount": row.get::<f64, _>("total_amount"),
+                    "status": row.get::<String, _>("status"),
+                    "reason": row.get::<Option<String>, _>("reason"),
+                    "created_at": row.get::<String, _>("created_at"),
+                    "updated_at": row.get::<String, _>("updated_at")
+                });
+                all_returns.push(return_bill);
+            }
+
+            // Sort by created_at descending
+            all_returns.sort_by(|a, b| {
+                let a_date = a["created_at"].as_str().unwrap_or("");
+                let b_date = b["created_at"].as_str().unwrap_or("");
+                b_date.cmp(a_date)
+            });
+
+            // Get total count
+            let total_sale_returns: i64 = sqlx::query("SELECT COUNT(*) as count FROM sale_returns WHERE status != 'cancelled'")
+                .fetch_one(&state.db.pool)
+                .await
+                .map(|row| row.get("count"))
+                .unwrap_or(0);
+
+            let total_purchase_returns: i64 = sqlx::query("SELECT COUNT(*) as count FROM purchase_returns WHERE status != 'cancelled'")
+                .fetch_one(&state.db.pool)
+                .await
+                .map(|row| row.get("count"))
+                .unwrap_or(0);
+
+            let total = total_sale_returns + total_purchase_returns;
+
+            let response = json!({
+                "data": all_returns,
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": total,
+                    "totalPages": (total + limit - 1) / limit
+                }
+            });
+
+            info!("Return bills retrieved successfully");
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "success": true,
+                    "data": response
+                }))
+            )
+        },
+        (Err(err), _) | (_, Err(err)) => {
+            error!("Failed to get return bills: {}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "success": false,
+                    "error": "Failed to get return bills"
+                }))
+            )
+        }
+    }
 }
 
 pub async fn create_payment_voucher(
@@ -676,9 +795,9 @@ pub async fn create_payment_voucher(
 }
 
 pub async fn get_bills_statistics(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     headers: HeaderMap,
-    Query(_query): Query<serde_json::Value>,
+    Query(query): Query<serde_json::Value>,
 ) -> impl IntoResponse {
     // Check authentication
     let auth_header = headers.get("Authorization")
@@ -698,20 +817,77 @@ pub async fn get_bills_statistics(
         }
     };
 
-    // TODO: Implement bills statistics
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({
-            "success": false,
-            "error": "Bills statistics not implemented yet"
-        })),
-    )
+    // Extract date filters
+    let date_from = query.get("date_from").and_then(|v| v.as_str());
+    let date_to = query.get("date_to").and_then(|v| v.as_str());
+
+    // Build date filter conditions
+    let mut date_conditions = Vec::new();
+    if let Some(from) = date_from {
+        date_conditions.push(format!("invoice_date >= '{}'", from));
+    }
+    if let Some(to) = date_to {
+        date_conditions.push(format!("invoice_date <= '{}'", to));
+    }
+
+    let where_clause = if date_conditions.is_empty() {
+        "WHERE status != 'cancelled'".to_string()
+    } else {
+        format!("WHERE status != 'cancelled' AND {}", date_conditions.join(" AND "))
+    };
+
+    // Get sales statistics
+    let stats_query = format!(
+        r#"
+        SELECT 
+            COUNT(*) as total_bills,
+            COALESCE(CAST(SUM(total_amount) AS REAL), 0.0) as total_amount,
+            COALESCE(CAST(SUM(paid_amount) AS REAL), 0.0) as total_paid,
+            COALESCE(CAST(SUM(total_amount - paid_amount) AS REAL), 0.0) as total_unpaid
+        FROM sales 
+        {}
+        "#,
+        where_clause
+    );
+
+    match sqlx::query(&stats_query)
+        .fetch_one(&state.db.pool)
+        .await
+    {
+        Ok(row) => {
+            let statistics = json!({
+                "total_bills": row.get::<i64, _>("total_bills"),
+                "total_amount": row.get::<f64, _>("total_amount"),
+                "total_paid": row.get::<f64, _>("total_paid"),
+                "total_unpaid": row.get::<f64, _>("total_unpaid")
+            });
+
+            info!("Sales statistics retrieved successfully");
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "success": true,
+                    "data": statistics
+                }))
+            )
+        },
+        Err(err) => {
+            error!("Failed to get sales statistics: {}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "success": false,
+                    "error": "Failed to get sales statistics"
+                }))
+            )
+        }
+    }
 }
 
 pub async fn get_purchases_statistics(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     headers: HeaderMap,
-    Query(_query): Query<serde_json::Value>,
+    Query(query): Query<serde_json::Value>,
 ) -> impl IntoResponse {
     // Check authentication
     let auth_header = headers.get("Authorization")
@@ -731,20 +907,77 @@ pub async fn get_purchases_statistics(
         }
     };
 
-    // TODO: Implement purchases statistics
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({
-            "success": false,
-            "error": "Purchases statistics not implemented yet"
-        })),
-    )
+    // Extract date filters
+    let date_from = query.get("date_from").and_then(|v| v.as_str());
+    let date_to = query.get("date_to").and_then(|v| v.as_str());
+
+    // Build date filter conditions
+    let mut date_conditions = Vec::new();
+    if let Some(from) = date_from {
+        date_conditions.push(format!("invoice_date >= '{}'", from));
+    }
+    if let Some(to) = date_to {
+        date_conditions.push(format!("invoice_date <= '{}'", to));
+    }
+
+    let where_clause = if date_conditions.is_empty() {
+        "WHERE status != 'cancelled'".to_string()
+    } else {
+        format!("WHERE status != 'cancelled' AND {}", date_conditions.join(" AND "))
+    };
+
+    // Get purchases statistics
+    let stats_query = format!(
+        r#"
+        SELECT 
+            COUNT(*) as total_purchases,
+            COALESCE(CAST(SUM(total_amount) AS REAL), 0.0) as total_amount,
+            COALESCE(CAST(SUM(paid_amount) AS REAL), 0.0) as total_paid,
+            COALESCE(CAST(SUM(total_amount - paid_amount) AS REAL), 0.0) as total_unpaid
+        FROM purchases 
+        {}
+        "#,
+        where_clause
+    );
+
+    match sqlx::query(&stats_query)
+        .fetch_one(&state.db.pool)
+        .await
+    {
+        Ok(row) => {
+            let statistics = json!({
+                "total_purchases": row.get::<i64, _>("total_purchases"),
+                "total_amount": row.get::<f64, _>("total_amount"),
+                "total_paid": row.get::<f64, _>("total_paid"),
+                "total_unpaid": row.get::<f64, _>("total_unpaid")
+            });
+
+            info!("Purchases statistics retrieved successfully");
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "success": true,
+                    "data": statistics
+                }))
+            )
+        },
+        Err(err) => {
+            error!("Failed to get purchases statistics: {}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "success": false,
+                    "error": "Failed to get purchases statistics"
+                }))
+            )
+        }
+    }
 }
 
 pub async fn get_returns_statistics(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     headers: HeaderMap,
-    Query(_query): Query<serde_json::Value>,
+    Query(query): Query<serde_json::Value>,
 ) -> impl IntoResponse {
     // Check authentication
     let auth_header = headers.get("Authorization")
@@ -764,14 +997,88 @@ pub async fn get_returns_statistics(
         }
     };
 
-    // TODO: Implement returns statistics
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(json!({
-            "success": false,
-            "error": "Returns statistics not implemented yet"
-        })),
-    )
+    // Extract date filters
+    let date_from = query.get("date_from").and_then(|v| v.as_str());
+    let date_to = query.get("date_to").and_then(|v| v.as_str());
+
+    // Build date filter conditions
+    let mut date_conditions = Vec::new();
+    if let Some(from) = date_from {
+        date_conditions.push(format!("return_date >= '{}'", from));
+    }
+    if let Some(to) = date_to {
+        date_conditions.push(format!("return_date <= '{}'", to));
+    }
+
+    let where_clause = if date_conditions.is_empty() {
+        "WHERE status != 'cancelled'".to_string()
+    } else {
+        format!("WHERE status != 'cancelled' AND {}", date_conditions.join(" AND "))
+    };
+
+    // Get returns statistics (combining sale_returns and purchase_returns)
+    let sale_returns_query = format!(
+        r#"
+        SELECT 
+            COUNT(*) as return_count,
+            COALESCE(CAST(SUM(total_amount) AS REAL), 0.0) as total_returned_amount
+        FROM sale_returns 
+        {}
+        "#,
+        where_clause
+    );
+
+    let purchase_returns_query = format!(
+        r#"
+        SELECT 
+            COUNT(*) as return_count,
+            COALESCE(CAST(SUM(total_amount) AS REAL), 0.0) as total_returned_amount
+        FROM purchase_returns 
+        {}
+        "#,
+        where_clause
+    );
+
+    // Execute both queries
+    let sale_returns_result = sqlx::query(&sale_returns_query)
+        .fetch_one(&state.db.pool)
+        .await;
+
+    let purchase_returns_result = sqlx::query(&purchase_returns_query)
+        .fetch_one(&state.db.pool)
+        .await;
+
+    match (sale_returns_result, purchase_returns_result) {
+        (Ok(sale_row), Ok(purchase_row)) => {
+            let total_returns = sale_row.get::<i64, _>("return_count") + purchase_row.get::<i64, _>("return_count");
+            let total_returned_amount = sale_row.get::<f64, _>("total_returned_amount") + purchase_row.get::<f64, _>("total_returned_amount");
+
+            let statistics = json!({
+                "total_returns": total_returns,
+                "total_returned_amount": total_returned_amount,
+                "return_count": total_returns
+            });
+
+            info!("Returns statistics retrieved successfully");
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "success": true,
+                    "data": statistics
+                }))
+            )
+        },
+        (Err(err), _) | (_, Err(err)) => {
+            error!("Failed to get returns statistics: {}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "success": false,
+                    "error": "Failed to get returns statistics"
+                }))
+            )
+        }
+    }
 }
 
 pub async fn debug_tables(

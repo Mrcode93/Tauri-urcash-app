@@ -47,7 +47,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CashBoxGuard } from '@/components/CashBoxGuard';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+// import { CashBoxGuard } from '@/components/CashBoxGuard'; // Removed - using money boxes only
 import { 
   Plus, 
   Search, 
@@ -65,7 +71,8 @@ import {
   Banknote,
   Building,
   ArrowUpDown,
-  Printer
+  Printer,
+  ChevronDown
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -109,7 +116,7 @@ const CustomerReceipts = () => {
     payment_method: 'cash',
     reference_number: '',
     notes: '',
-    money_box_id: '',
+    money_box_id: undefined,
     delegate_id: undefined,
     employee_id: undefined
   });
@@ -128,7 +135,10 @@ const CustomerReceipts = () => {
 
   // Helper function to calculate total debt
   const getTotalDebt = useCallback(() => {
-    return selectedCustomerDebts.reduce((sum, debt) => sum + (debt.remaining_amount || 0), 0);
+    console.log('getTotalDebt called, selectedCustomerDebts:', selectedCustomerDebts);
+    const total = selectedCustomerDebts.reduce((sum, debt) => sum + (debt.debt_amount || 0), 0);
+    console.log('Calculated total debt:', total);
+    return total;
   }, [selectedCustomerDebts]);
 
   // Helper function to calculate remaining debt after payment
@@ -217,6 +227,12 @@ const CustomerReceipts = () => {
     dispatch(fetchEmployees({ page: 1, limit: 100 }));
   }, [dispatch]);
 
+  // Debug selectedCustomerDebts changes
+  useEffect(() => {
+    console.log('selectedCustomerDebts changed:', selectedCustomerDebts);
+    console.log('selectedCustomerDebts.length:', selectedCustomerDebts.length);
+  }, [selectedCustomerDebts]);
+
   // Memoized load customer data function
   const loadCustomerData = useCallback(async (customerId: number) => {
     if (!customerId) return;
@@ -262,7 +278,26 @@ const CustomerReceipts = () => {
     }
   }, []);
 
+  // Function to check if customer has unpaid debts
+  const checkCustomerDebts = useCallback(async (customerId: number) => {
+    try {
+      console.log('Checking customer debts for customer ID:', customerId);
+      setCheckingCustomerDebts(true);
+      const debts = await customerReceiptsService.getCustomerDebts(customerId);
+      console.log('Customer debts response:', debts);
+      console.log('Setting selectedCustomerDebts to:', debts || []);
+      setSelectedCustomerDebts(debts || []);
+      console.log('State update triggered for selectedCustomerDebts');
+    } catch (error) {
+      console.error('Error checking customer debts:', error);
+      setSelectedCustomerDebts([]);
+    } finally {
+      setCheckingCustomerDebts(false);
+    }
+  }, []);
+
   const handleCustomerChange = useCallback((customerId: number) => {
+    console.log('Customer changed to ID:', customerId);
     setFormData(prev => ({ ...prev, customer_id: customerId, sale_id: undefined }));
     if (customerId) {
       loadCustomerSales(customerId);
@@ -272,21 +307,7 @@ const CustomerReceipts = () => {
       setCustomerSales([]);
       setSelectedCustomerDebts([]);
     }
-  }, [loadCustomerSales]);
-
-  // Function to check if customer has unpaid debts
-  const checkCustomerDebts = useCallback(async (customerId: number) => {
-    try {
-      setCheckingCustomerDebts(true);
-      const debts = await customerReceiptsService.getCustomerDebts(customerId);
-      setSelectedCustomerDebts(debts || []);
-    } catch (error) {
-      console.error('Error checking customer debts:', error);
-      setSelectedCustomerDebts([]);
-    } finally {
-      setCheckingCustomerDebts(false);
-    }
-  }, []);
+  }, [loadCustomerSales, checkCustomerDebts]);
 
   const handleCreate = useCallback(async () => {
     try {
@@ -474,9 +495,19 @@ const CustomerReceipts = () => {
     setSelectedCustomerId(customerId);
   }, []);
 
-  const handleExport = useCallback(async () => {
+  const handleExportCSV = useCallback(async () => {
     try {
       await customerReceiptsService.downloadCSV(filters);
+      toast.success('تم تصدير البيانات بنجاح');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast.error('حدث خطأ أثناء تصدير البيانات');
+    }
+  }, [filters]);
+
+  const handleExportPDF = useCallback(async () => {
+    try {
+      await customerReceiptsService.downloadPDF(filters);
       toast.success('تم تصدير البيانات بنجاح');
     } catch (error) {
       console.error('Error exporting data:', error);
@@ -529,8 +560,7 @@ const CustomerReceipts = () => {
   }
 
   return (
-    <CashBoxGuard>
-      <div className=" p-6 space-y-6 max-h-[90vh] overflow-y-auto">
+    <div className=" p-6 space-y-6 max-h-[90vh] overflow-y-auto">
         {/* Header */} 
         <div className="flex justify-between items-center">
           <div>
@@ -538,10 +568,25 @@ const CustomerReceipts = () => {
             <p className="text-gray-500">إدارة إيصالات الدفع للعملاء</p>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleExport} variant="outline">
-              <Download className="w-4 h-4 ml-2" />
-              تصدير
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="w-4 h-4 ml-2" />
+                  تصدير
+                  <ChevronDown className="w-4 h-4 mr-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  <FileText className="w-4 h-4 ml-2" />
+                  تصدير CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>
+                  <FileText className="w-4 h-4 ml-2" />
+                  تصدير PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button 
               variant="outline" 
               onClick={() => {
@@ -574,7 +619,7 @@ const CustomerReceipts = () => {
                         <SelectValue placeholder="اختر العميل" />
                       </SelectTrigger>
                       <SelectContent>
-                        {customers.map((customer) => (
+                        {customers?.map((customer) => (
                           <SelectItem key={customer.id} value={customer.id.toString()}>
                             {customer.name}
                           </SelectItem>
@@ -629,7 +674,7 @@ const CustomerReceipts = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">بدون فاتورة</SelectItem>
-                        {customerSales.map((sale) => (
+                        {customerSales?.map((sale) => (
                           <SelectItem key={sale.id} value={sale.id.toString()}>
                             {sale.invoice_no} - المتبقي: {sale.remaining_amount || 0}
                           </SelectItem>
@@ -705,13 +750,13 @@ const CustomerReceipts = () => {
                   </div>
                   <div>
                     <Label>صندوق المال</Label>
-                    <Select value={formData.money_box_id} onValueChange={(value: string) => setFormData(prev => ({ ...prev, money_box_id: value }))}>
+                    <Select value={formData.money_box_id?.toString() || ''} onValueChange={(value: string) => setFormData(prev => ({ ...prev, money_box_id: value ? parseInt(value) : undefined }))}>
                       <SelectTrigger>
                         <SelectValue placeholder="اختر صندوق المال" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="cash_box">صندوق النقد</SelectItem>
-                        {moneyBoxes.map((moneyBox) => (
+                        {moneyBoxes?.map((moneyBox) => (
                           <SelectItem key={moneyBox.id} value={moneyBox.id.toString()}>
                             {moneyBox.name} - الرصيد: {moneyBox.amount?.toLocaleString()}
                           </SelectItem>
@@ -721,7 +766,7 @@ const CustomerReceipts = () => {
                     {formData.money_box_id && formData.money_box_id !== 'cash_box' && (
                       <div className="mt-1">
                         {(() => {
-                          const selectedMoneyBox = moneyBoxes.find(box => box.id.toString() === formData.money_box_id);
+                          const selectedMoneyBox = moneyBoxes.find(box => box.id === formData.money_box_id);
                           if (selectedMoneyBox) {
                             return (
                               <span className="text-green-500 text-sm">
@@ -751,7 +796,7 @@ const CustomerReceipts = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">بدون مندوب</SelectItem>
-                        {delegates.map((delegate) => (
+                        {delegates?.map((delegate) => (
                           <SelectItem key={delegate.id} value={delegate.id.toString()}>
                             {delegate.name}
                           </SelectItem>
@@ -768,7 +813,7 @@ const CustomerReceipts = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">بدون موظف</SelectItem>
-                        {employees.map((employee) => (
+                        {employees?.map((employee) => (
                           <SelectItem key={employee.id} value={employee.id.toString()}>
                             {employee.name}
                           </SelectItem>
@@ -878,7 +923,7 @@ const CustomerReceipts = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">جميع العملاء</SelectItem>
-                    {customers.map((customer) => (
+                    {customers?.map((customer) => (
                       <SelectItem key={customer.id} value={customer.id.toString()}>
                         {customer.name}
                       </SelectItem>
@@ -940,7 +985,7 @@ const CustomerReceipts = () => {
                     <SelectValue placeholder="اختر العميل لعرض ديونه وفواتيره" />
                   </SelectTrigger>
                   <SelectContent>
-                    {customers.map((customer) => (
+                    {customers?.map((customer) => (
                       <SelectItem key={customer.id} value={customer.id.toString()}>
                         {customer.name} {customer.phone && `(${customer.phone})`}
                       </SelectItem>
@@ -1029,7 +1074,7 @@ const CustomerReceipts = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {receipts.map((receipt) => (
+                    {receipts?.map((receipt) => (
                       <TableRow key={receipt.id}>
                         <TableCell className="font-medium">{receipt.receipt_number}</TableCell>
                         <TableCell>{receipt.customer_name}</TableCell>
@@ -1218,7 +1263,7 @@ const CustomerReceipts = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {customerDebts.map((debt) => (
+                        {customerDebts?.map((debt) => (
                           <TableRow key={debt.id}>
                             <TableCell className="font-medium">{debt.invoice_no}</TableCell>
                             <TableCell>{format(new Date(debt.invoice_date), 'dd/MM/yyyy', { locale: ar })}</TableCell>
@@ -1319,7 +1364,7 @@ const CustomerReceipts = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {customerBills.map((bill) => (
+                        {customerBills?.map((bill) => (
                           <TableRow key={bill.id}>
                             <TableCell className="font-medium">{bill.invoice_no}</TableCell>
                             <TableCell>{format(new Date(bill.invoice_date), 'dd/MM/yyyy', { locale: ar })}</TableCell>
@@ -1388,7 +1433,7 @@ const CustomerReceipts = () => {
                     <SelectValue placeholder="اختر العميل" />
                   </SelectTrigger>
                   <SelectContent>
-                    {customers.map((customer) => (
+                    {customers?.map((customer) => (
                       <SelectItem key={customer.id} value={customer.id.toString()}>
                         {customer.name}
                       </SelectItem>
@@ -1404,7 +1449,7 @@ const CustomerReceipts = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">بدون فاتورة</SelectItem>
-                    {customerSales.map((sale) => (
+                    {customerSales?.map((sale) => (
                       <SelectItem key={sale.id} value={sale.id.toString()}>
                         {sale.invoice_no} - المتبقي: {sale.remaining_amount || 0}
                       </SelectItem>
@@ -1445,13 +1490,13 @@ const CustomerReceipts = () => {
               </div>
               <div>
                 <Label>صندوق المال</Label>
-                <Select value={formData.money_box_id} onValueChange={(value: string) => setFormData(prev => ({ ...prev, money_box_id: value }))}>
+                <Select value={formData.money_box_id?.toString() || ''} onValueChange={(value: string) => setFormData(prev => ({ ...prev, money_box_id: value ? parseInt(value) : undefined }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="اختر صندوق المال" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cash_box">صندوق النقد</SelectItem>
-                    {moneyBoxes.map((moneyBox) => (
+                    {moneyBoxes?.map((moneyBox) => (
                       <SelectItem key={moneyBox.id} value={moneyBox.id.toString()}>
                         {moneyBox.name} - الرصيد: {moneyBox.amount?.toLocaleString()}
                       </SelectItem>
@@ -1461,7 +1506,7 @@ const CustomerReceipts = () => {
                 {formData.money_box_id && formData.money_box_id !== 'cash_box' && (
                   <div className="mt-1">
                     {(() => {
-                      const selectedMoneyBox = moneyBoxes.find(box => box.id.toString() === formData.money_box_id);
+                      const selectedMoneyBox = moneyBoxes.find(box => box.id === formData.money_box_id);
                       if (selectedMoneyBox) {
                         return (
                           <span className="text-green-500 text-sm">
@@ -1674,7 +1719,7 @@ const CustomerReceipts = () => {
                 <div className="p-3 bg-gray-50 rounded-lg">
                   <h4 className="font-medium text-gray-900 mb-2">تفاصيل الفواتير</h4>
                   <div className="space-y-1 text-xs">
-                    {selectedCustomerDebts.map((debt, index) => (
+                    {selectedCustomerDebts?.map((debt, index) => (
                       <div key={index} className="flex justify-between text-gray-600">
                         <span>فاتورة {debt.invoice_no}:</span>
                         <span>{debt.remaining_amount?.toLocaleString()}</span>
@@ -1708,7 +1753,6 @@ const CustomerReceipts = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </CashBoxGuard>
   );
 };
 

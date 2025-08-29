@@ -183,7 +183,7 @@ const StockMovements: React.FC = () => {
                       <SelectValue placeholder="اختر المخزن المصدر" />
                     </SelectTrigger>
                     <SelectContent>
-                      {stocks.map((stock) => (
+                      {stocks?.map((stock) => (
                         <SelectItem key={stock.id} value={stock.id.toString()}>
                           {stock.name}
                         </SelectItem>
@@ -202,7 +202,7 @@ const StockMovements: React.FC = () => {
                       <SelectValue placeholder="اختر المخزن الهدف" />
                     </SelectTrigger>
                     <SelectContent>
-                      {stocks.map((stock) => (
+                      {stocks?.map((stock) => (
                         <SelectItem key={stock.id} value={stock.id.toString()}>
                           {stock.name}
                         </SelectItem>

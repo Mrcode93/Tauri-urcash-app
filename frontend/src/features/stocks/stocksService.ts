@@ -102,7 +102,13 @@ class StocksService {
   // Get all stocks
   async getAllStocks(): Promise<Stock[]> {
     const response = await api.get('/stocks');
-    return response.data.data;
+    // Handle paginated response structure from Rust server
+    if (response.data.data && response.data.data.items && Array.isArray(response.data.data.items)) {
+      return response.data.data.items;
+    } else if (Array.isArray(response.data.data)) {
+      return response.data.data;
+    }
+    return [];
   }
 
   // Get stock by ID

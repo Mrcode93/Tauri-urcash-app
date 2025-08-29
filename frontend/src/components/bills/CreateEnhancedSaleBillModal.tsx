@@ -560,7 +560,7 @@ const CreateEnhancedSaleBillModal: React.FC<CreateEnhancedSaleBillModalProps> = 
                           <SelectValue placeholder="اختر المخزن (مطلوب)" />
                         </SelectTrigger>
                         <SelectContent>
-                          {stocks.map((stock) => (
+                          {stocks?.map((stock) => (
                             <SelectItem key={stock.id} value={stock.id.toString()}>
                               {stock.name} ({stock.code})
                             </SelectItem>

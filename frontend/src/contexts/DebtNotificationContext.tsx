@@ -196,14 +196,35 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     const notifications: InventoryNotification[] = [];
     const now = new Date();
 
+    // Safety check for products array
+    if (!Array.isArray(products)) {
+      console.warn('Products is not an array:', products);
+      return notifications;
+    }
+
     products.forEach(product => {
+      // Safety check for undefined or null products
+      if (!product || typeof product !== 'object') {
+        return;
+      }
+
+      // Safety check for required properties
+      if (typeof product.current_stock !== 'number' || typeof product.min_stock !== 'number') {
+        return;
+      }
+
+      // Safety check for other required properties
+      if (!product.id || !product.name) {
+        return;
+      }
+
       // Low stock notifications
       if (product.current_stock <= product.min_stock && product.current_stock > 0) {
         notifications.push({
           id: `low_stock_${product.id}`,
           type: 'inventory',
           title: 'مخزون منخفض',
-          message: `المنتج "${product.name}" وصل إلى حد أدنى للمخزون - المتبقي: ${product.current_stock} ${product.unit}`,
+          message: `المنتج "${product.name}" وصل إلى حد أدنى للمخزون - المتبقي: ${product.current_stock} ${product.unit || ''}`,
           priority: 'medium',
           timestamp: now,
           product
@@ -225,32 +246,41 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
       // Expiry notifications
       if (product.expiry_date) {
-        const expiryDate = new Date(product.expiry_date);
-        const daysUntilExpiry = Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        try {
+          const expiryDate = new Date(product.expiry_date);
+          if (isNaN(expiryDate.getTime())) {
+            return; // Invalid date
+          }
+          
+          const daysUntilExpiry = Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-        // Expired products
-        if (daysUntilExpiry < 0) {
-          notifications.push({
-            id: `expired_${product.id}`,
-            type: 'inventory',
-            title: 'منتج منتهي الصلاحية',
-            message: `المنتج "${product.name}" منتهي الصلاحية منذ ${Math.abs(daysUntilExpiry)} يوم - يجب إزالته`,
-            priority: 'high',
-            timestamp: expiryDate,
-            product
-          });
-        }
-        // Products expiring within 7 days
-        else if (daysUntilExpiry <= 7 && daysUntilExpiry > 0) {
-          notifications.push({
-            id: `expiring_${product.id}`,
-            type: 'inventory',
-            title: 'منتج قارب على الانتهاء',
-            message: `المنتج "${product.name}" سينتهي خلال ${daysUntilExpiry} يوم - المخزون: ${product.current_stock} ${product.unit}`,
-            priority: 'medium',
-            timestamp: expiryDate,
-            product
-          });
+          // Expired products
+          if (daysUntilExpiry < 0) {
+            notifications.push({
+              id: `expired_${product.id}`,
+              type: 'inventory',
+              title: 'منتج منتهي الصلاحية',
+              message: `المنتج "${product.name}" منتهي الصلاحية منذ ${Math.abs(daysUntilExpiry)} يوم - يجب إزالته`,
+              priority: 'high',
+              timestamp: expiryDate,
+              product
+            });
+          }
+          // Products expiring within 7 days
+          else if (daysUntilExpiry <= 7 && daysUntilExpiry > 0) {
+            notifications.push({
+              id: `expiring_${product.id}`,
+              type: 'inventory',
+              title: 'منتج قارب على الانتهاء',
+              message: `المنتج "${product.name}" سينتهي خلال ${daysUntilExpiry} يوم - المخزون: ${product.current_stock} ${product.unit || ''}`,
+              priority: 'medium',
+              timestamp: expiryDate,
+              product
+            });
+          }
+        } catch (error) {
+          console.warn('Error processing expiry date for product:', product.id, error);
+          return;
         }
       }
     });
@@ -260,24 +290,30 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   // Update notifications when data changes
   useEffect(() => {
-    const debtNotifications = generateDebtNotifications(debts);
-    const inventoryNotifications = generateInventoryNotifications(products);
-    
-    const allNotifications = [...debtNotifications, ...inventoryNotifications]
-      .sort((a, b) => {
-        // Sort by priority (high first), then by timestamp
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
-        if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
-          return priorityOrder[a.priority] - priorityOrder[b.priority];
-        }
-        return b.timestamp.getTime() - a.timestamp.getTime();
-      });
+    try {
+      const debtNotifications = generateDebtNotifications(debts || []);
+      const inventoryNotifications = generateInventoryNotifications(products || []);
+      
+      const allNotifications = [...debtNotifications, ...inventoryNotifications]
+        .sort((a, b) => {
+          // Sort by priority (high first), then by timestamp
+          const priorityOrder = { high: 0, medium: 1, low: 2 };
+          if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+            return priorityOrder[a.priority] - priorityOrder[b.priority];
+          }
+          return b.timestamp.getTime() - a.timestamp.getTime();
+        });
 
-    setNotifications(allNotifications);
-    
-    // Update unread count
-    const unreadNotifications = allNotifications.filter(n => !readNotifications.has(n.id));
-    setUnreadCount(unreadNotifications.length);
+      setNotifications(allNotifications);
+      
+      // Update unread count
+      const unreadNotifications = allNotifications.filter(n => !readNotifications.has(n.id));
+      setUnreadCount(unreadNotifications.length);
+    } catch (error) {
+      console.error('Error generating notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
+    }
   }, [debts, products, readNotifications]);
 
   // Mark notification as read

@@ -210,10 +210,10 @@ export const createSaleBill = async (
 ): Promise<any> => {
   try {
     const requestData = { 
-      billData, 
+      bill_data: billData, 
       items,
-      moneyBoxId,
-      transactionNotes
+      money_box_id: moneyBoxId,
+      transaction_notes: transactionNotes
     };
     
     const response = await api.post('/bills/sale', requestData);
@@ -239,8 +239,11 @@ export const getAllSaleBills = async (filters?: BillsFilters, page?: number, lim
     
     
     const response = await api.get(url);
+
+    console.log(response.data);
     
-    return response.data;
+    // The API returns data nested under response.data.data
+    return response.data.data.data;
   } catch (error) {
     throw handleApiError(error);
   }
@@ -292,10 +295,10 @@ export const createPurchaseBill = async (
 ): Promise<any> => {
   try {
     const requestData = { 
-      billData, 
+      bill_data: billData, 
       items,
-      moneyBoxId,
-      transactionNotes
+      money_box_id: moneyBoxId,
+      transaction_notes: transactionNotes
     };
     
     const response = await api.post('/bills/purchase', requestData);
@@ -327,7 +330,8 @@ export const getAllPurchaseBills = async (filters?: BillsFilters, page?: number,
     
     const response = await api.get(url);
     
-    return response.data;
+    // The API returns data nested under response.data.data
+    return response.data.data.data;
   } catch (error) {
     throw handleApiError(error);
   }
@@ -398,7 +402,8 @@ export const getAllReturnBills = async (filters?: BillsFilters, page?: number, l
     
     const response = await api.get(url);
     
-    return response.data;
+    // The API returns data nested under response.data.data
+    return response.data.data.data;
   } catch (error) {
     throw handleApiError(error);
   }

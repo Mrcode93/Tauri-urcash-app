@@ -19,7 +19,8 @@ import {
   Settings,
   ReceiptText,
   CreditCard,
-  Warehouse
+  Warehouse,
+  Box
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -64,6 +65,7 @@ const Sidebar = ({ isOpen, toggleSidebar, collapsed = false, toggleCollapse }: S
         { name: 'المشتريات', path: '/purchases', enabled: true },
         { name: 'المنتجات', path: '/inventory', enabled: true },
         { name: 'العملاء', path: '/customers', enabled: true },
+        { name: 'إدارة الصناديق', path: '/admin-cash-box', enabled: true },
         {name: 'المخازن', path: '/stocks', enabled: true},
         { name: 'الموردين', path: '/suppliers', enabled: true },
         { name: 'المصروفات', path: '/expenses', enabled: true },
@@ -127,6 +129,8 @@ const Sidebar = ({ isOpen, toggleSidebar, collapsed = false, toggleCollapse }: S
         return Receipt;
       case '/customer-payments':
         return CreditCard;
+      case '/admin-cash-box':
+        return Box;
       default:
         return LayoutDashboard;
     }

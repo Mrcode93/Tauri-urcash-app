@@ -3,12 +3,17 @@ import api from '@/lib/api';
 export interface Supplier {
   id: number;
   name: string;
-  contact_person?: string;
+  contact_person: string;
   email?: string;
   phone?: string;
   address?: string;
+  tax_number?: string;
+  notes?: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
+  products_count?: number;
+  total_supplier_value?: number;
 }
 
 export type CreateSupplierData = {
@@ -81,8 +86,8 @@ const handleSuppliersApiError = (error: any, operation: string): never => {
 // Get all suppliers
 export const getSuppliers = async (): Promise<Supplier[]> => {
   try {
-    const response = await api.get<{ success: boolean; data: Supplier[] }>('/suppliers');
-    return response.data.data;
+    const response = await api.get<{ success: boolean; data: { items: Supplier[] } }>('/suppliers');
+    return response.data.data.items;
   } catch (error) {
     handleSuppliersApiError(error, 'getSuppliers');
   }

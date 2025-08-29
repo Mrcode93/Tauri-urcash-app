@@ -299,7 +299,7 @@ const PurchaseForm = ({ onSubmit, formData, setFormData, suppliers, products, mo
     if (formData.payment_status === 'paid' || formData.payment_status === 'partial') {
       const amountToPay = formData.payment_status === 'paid' ? calculateTotalAmount() : (formData.paid_amount || 0);
       
-      if (formData.moneyBoxId && formData.moneyBoxId !== 'cash_box') {
+              if (formData.moneyBoxId) {
         const selectedMoneyBox = moneyBoxes.find(box => box.id.toString() === formData.moneyBoxId);
         if (selectedMoneyBox && selectedMoneyBox.amount < amountToPay) {
           toast.error(
@@ -463,7 +463,7 @@ const PurchaseForm = ({ onSubmit, formData, setFormData, suppliers, products, mo
                 <SelectValue placeholder="اختر صندوق المال" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="cash_box">صندوق النقد</SelectItem>
+
                 {moneyBoxes.map((moneyBox) => (
                   <SelectItem key={moneyBox.id} value={moneyBox.id.toString()}>
                     {moneyBox.name} - {formatCurrency(moneyBox.amount)}
@@ -471,7 +471,7 @@ const PurchaseForm = ({ onSubmit, formData, setFormData, suppliers, products, mo
                 ))}
               </SelectContent>
             </Select>
-            {formData.moneyBoxId && formData.moneyBoxId !== 'cash_box' && (
+            {formData.moneyBoxId && (
               <div className="mt-2 p-2 bg-blue-50 rounded-md">
                 <p className="text-sm text-blue-700">
                   الرصيد المتوفر: {formatCurrency(moneyBoxes.find(box => box.id.toString() === formData.moneyBoxId)?.amount || 0)}
@@ -569,7 +569,7 @@ const PurchaseForm = ({ onSubmit, formData, setFormData, suppliers, products, mo
                     لا توجد مخازن متاحة
                   </SelectItem>
                 ) : (
-                  stocks.map((stock) => (
+                  stocks?.map((stock) => (
                     <SelectItem key={stock.id} value={stock.id.toString()}>
                       {stock.name} {stock.is_main_stock ? '(المخزن الرئيسي)' : ''}
                     </SelectItem>

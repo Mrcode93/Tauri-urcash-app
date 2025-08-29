@@ -452,9 +452,9 @@ impl CustomerService {
             r#"
             SELECT 
                 COUNT(s.id) as total_bills_count,
-                COALESCE(SUM(s.total_amount), 0) as total_bills,
-                COALESCE(SUM(s.paid_amount), 0) as total_paid,
-                COALESCE(SUM(s.total_amount - s.paid_amount), 0) as total_debt,
+                COALESCE(CAST(SUM(s.total_amount) AS REAL), 0.0) as total_bills,
+                COALESCE(CAST(SUM(s.paid_amount) AS REAL), 0.0) as total_paid,
+                COALESCE(CAST(SUM(s.total_amount - s.paid_amount) AS REAL), 0.0) as total_debt,
                 COUNT(CASE WHEN s.payment_status = 'paid' THEN 1 END) as paid_bills_count,
                 COUNT(CASE WHEN s.payment_status = 'unpaid' OR s.payment_status = 'partial' THEN 1 END) as unpaid_bills_count
             FROM customers c
@@ -473,9 +473,9 @@ impl CustomerService {
                 name: customer.name,
                 phone: customer.phone,
                 email: customer.email,
-                total_bills: row.get("total_bills"),
-                total_paid: row.get("total_paid"),
-                total_debt: row.get("total_debt"),
+                total_bills: row.get::<f64, _>("total_bills"),
+                total_paid: row.get::<f64, _>("total_paid"),
+                total_debt: row.get::<f64, _>("total_debt"),
                 total_bills_count: row.get("total_bills_count"),
                 unpaid_bills_count: row.get("unpaid_bills_count"),
                 paid_bills_count: row.get("paid_bills_count"),

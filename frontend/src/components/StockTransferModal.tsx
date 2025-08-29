@@ -134,7 +134,7 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({
         setStockProducts(stockData);
       } else {
         // Fallback to simulated data if API fails
-        const stockProductsData: StockProductInfo[] = stocks.map(stock => ({
+        const stockProductsData: StockProductInfo[] = stocks?.map(stock => ({
           stock_id: stock.id,
           stock_name: stock.name,
           current_quantity: stock.id === product.stock_id ? product.current_stock : 0,
@@ -156,7 +156,7 @@ const StockTransferModal: React.FC<StockTransferModalProps> = ({
     } catch (error) {
       console.error('Error loading stock products:', error);
       // Fallback to simulated data
-      const stockProductsData: StockProductInfo[] = stocks.map(stock => ({
+      const stockProductsData: StockProductInfo[] = stocks?.map(stock => ({
         stock_id: stock.id,
         stock_name: stock.name,
         current_quantity: stock.id === product.stock_id ? product.current_stock : 0,

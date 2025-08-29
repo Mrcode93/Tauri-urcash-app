@@ -146,7 +146,7 @@ const CartTabs = memo(({
           className="text-lg font-bold"
           style={{ color: colors?.primary.DEFAULT || '#3B82F6' }}
         >
-          سلع البيع
+         
         </h3>
         <Button
           variant="outline"

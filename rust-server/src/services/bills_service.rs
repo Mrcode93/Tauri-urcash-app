@@ -65,15 +65,14 @@ impl BillsService {
         let sale_id = sqlx::query(
             r#"
             INSERT INTO sales (
-                customer_id, delegate_id, employee_id, invoice_no, invoice_date, due_date,
+                customer_id, delegate_id, invoice_no, invoice_date, due_date,
                 total_amount, discount_amount, tax_amount, paid_amount, payment_method,
-                payment_status, bill_type, status, notes, barcode, created_by, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                payment_status, status, notes, barcode, created_by, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#
         )
         .bind(request.bill_data.customer_id)
         .bind(request.bill_data.delegate_id)
-        .bind(request.bill_data.employee_id)
         .bind(&invoice_no)
         .bind(&request.bill_data.invoice_date)
         .bind(&due_date)
@@ -83,7 +82,6 @@ impl BillsService {
         .bind(paid_amount)
         .bind(request.bill_data.payment_method.as_deref().unwrap_or("cash"))
         .bind(&payment_status)
-        .bind(request.bill_data.bill_type.as_deref().unwrap_or("retail"))
         .bind("completed")
         .bind(&request.bill_data.notes)
         .bind(&request.bill_data.barcode)
@@ -178,22 +176,69 @@ impl BillsService {
         let limit = query.limit.unwrap_or(20);
         let offset = (page - 1) * limit;
 
-        // Simplified query without dynamic parameters for now
-        let count_query = "SELECT COUNT(*) as count FROM sales s WHERE s.status != 'cancelled'";
-        let total: i64 = sqlx::query(count_query)
+        // Build WHERE clause with filters
+        let mut where_conditions = vec!["s.status != 'cancelled'"];
+        let mut params: Vec<String> = vec![];
+
+        if let Some(customer_id) = query.customer_id {
+            where_conditions.push("s.customer_id = ?");
+            params.push(customer_id.to_string());
+        }
+
+        if let Some(delegate_id) = query.delegate_id {
+            where_conditions.push("s.delegate_id = ?");
+            params.push(delegate_id.to_string());
+        }
+
+        if let Some(payment_status) = &query.payment_status {
+            where_conditions.push("s.payment_status = ?");
+            params.push(payment_status.clone());
+        }
+
+        if let Some(start_date) = &query.start_date {
+            where_conditions.push("s.invoice_date >= ?");
+            params.push(start_date.clone());
+        }
+
+        if let Some(end_date) = &query.end_date {
+            where_conditions.push("s.invoice_date <= ?");
+            params.push(end_date.clone());
+        }
+
+        if let Some(invoice_no) = &query.invoice_no {
+            where_conditions.push("s.invoice_no LIKE ?");
+            params.push(format!("%{}%", invoice_no));
+        }
+
+        let where_clause = where_conditions.join(" AND ");
+
+        // Count query with filters
+        let count_query = format!("SELECT COUNT(*) as count FROM sales s WHERE {}", where_clause);
+        let mut count_query_builder = sqlx::query(&count_query);
+        for param in &params {
+            count_query_builder = count_query_builder.bind(param);
+        }
+        let total: i64 = count_query_builder
             .fetch_one(&db.pool)
             .await?
             .get("count");
 
-        // Get paginated results
-        let sales_query = r#"
+        // Get paginated results with filters
+        let sales_query = format!(
+            r#"
             SELECT s.* FROM sales s
-            WHERE s.status != 'cancelled'
+            WHERE {}
             ORDER BY s.created_at DESC
             LIMIT ? OFFSET ?
-        "#;
+            "#,
+            where_clause
+        );
 
-        let rows = sqlx::query(sales_query)
+        let mut sales_query_builder = sqlx::query(&sales_query);
+        for param in &params {
+            sales_query_builder = sales_query_builder.bind(param);
+        }
+        let rows = sales_query_builder
             .bind(limit)
             .bind(offset)
             .fetch_all(&db.pool)
@@ -206,7 +251,7 @@ impl BillsService {
                 id: row.get("id"),
                 customer_id: row.get("customer_id"),
                 delegate_id: row.get("delegate_id"),
-                employee_id: row.get("employee_id"),
+                employee_id: None, // Not in database schema
                 invoice_no: row.get("invoice_no"),
                 invoice_date: row.get("invoice_date"),
                 due_date: row.get("due_date"),
@@ -216,7 +261,7 @@ impl BillsService {
                 paid_amount: row.get("paid_amount"),
                 payment_method: row.get("payment_method"),
                 payment_status: row.get("payment_status"),
-                bill_type: row.get("bill_type"),
+                bill_type: "retail".to_string(), // Default value since not in database
                 status: row.get("status"),
                 notes: row.get("notes"),
                 barcode: row.get("barcode"),
@@ -243,7 +288,7 @@ impl BillsService {
             id: row.get("id"),
             customer_id: row.get("customer_id"),
             delegate_id: row.get("delegate_id"),
-            employee_id: row.get("employee_id"),
+            employee_id: None, // Not in database schema
             invoice_no: row.get("invoice_no"),
             invoice_date: row.get("invoice_date"),
             due_date: row.get("due_date"),
@@ -253,7 +298,7 @@ impl BillsService {
             paid_amount: row.get("paid_amount"),
             payment_method: row.get("payment_method"),
             payment_status: row.get("payment_status"),
-            bill_type: row.get("bill_type"),
+            bill_type: "retail".to_string(), // Default value since not in database
             status: row.get("status"),
             notes: row.get("notes"),
             barcode: row.get("barcode"),
@@ -275,7 +320,7 @@ impl BillsService {
             id: row.get("id"),
             customer_id: row.get("customer_id"),
             delegate_id: row.get("delegate_id"),
-            employee_id: row.get("employee_id"),
+            employee_id: None, // Not in database schema
             invoice_no: row.get("invoice_no"),
             invoice_date: row.get("invoice_date"),
             due_date: row.get("due_date"),
@@ -285,7 +330,7 @@ impl BillsService {
             paid_amount: row.get("paid_amount"),
             payment_method: row.get("payment_method"),
             payment_status: row.get("payment_status"),
-            bill_type: row.get("bill_type"),
+            bill_type: "retail".to_string(), // Default value since not in database
             status: row.get("status"),
             notes: row.get("notes"),
             barcode: row.get("barcode"),
@@ -428,28 +473,25 @@ impl BillsService {
         let purchase_id = sqlx::query(
             r#"
             INSERT INTO purchases (
-                supplier_id, delegate_id, employee_id, invoice_no, invoice_date, due_date,
-                total_amount, discount_amount, tax_amount, paid_amount, payment_method,
-                payment_status, bill_type, status, notes, barcode, created_by, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                supplier_id, invoice_no, invoice_date, due_date,
+                total_amount, discount_amount, tax_amount, net_amount, paid_amount, payment_method,
+                payment_status, status, notes, created_by, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#
         )
         .bind(request.bill_data.supplier_id)
-        .bind(request.bill_data.delegate_id)
-        .bind(request.bill_data.employee_id)
         .bind(&invoice_no)
         .bind(&request.bill_data.invoice_date)
         .bind(&due_date)
         .bind(total_amount)
         .bind(discount_amount)
         .bind(tax_amount)
+        .bind(net_amount)
         .bind(paid_amount)
         .bind(request.bill_data.payment_method.as_deref().unwrap_or("cash"))
         .bind(&payment_status)
-        .bind(request.bill_data.bill_type.as_deref().unwrap_or("retail"))
         .bind("completed")
         .bind(&request.bill_data.notes)
-        .bind(&request.bill_data.barcode)
         .bind(request.bill_data.created_by)
         .bind(Utc::now())
         .bind(Utc::now())
@@ -466,8 +508,8 @@ impl BillsService {
                 r#"
                 INSERT INTO purchase_items (
                     purchase_id, product_id, stock_id, quantity, price, discount_percent,
-                    tax_percent, total, line_total, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    tax_percent, total, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#
             )
             .bind(purchase_id)
@@ -477,7 +519,6 @@ impl BillsService {
             .bind(item.price)
             .bind(item.discount_percent.unwrap_or(0.0))
             .bind(item.tax_percent.unwrap_or(0.0))
-            .bind(item.quantity as f64 * item.price)
             .bind(line_total)
             .bind(Utc::now())
             .execute(&mut *transaction)
@@ -556,8 +597,8 @@ impl BillsService {
             let purchase = PurchaseBill {
                 id: row.get("id"),
                 supplier_id: row.get("supplier_id"),
-                delegate_id: row.get("delegate_id"),
-                employee_id: row.get("employee_id"),
+                delegate_id: None, // Not in database schema
+                employee_id: None, // Not in database schema
                 invoice_no: row.get("invoice_no"),
                 invoice_date: row.get("invoice_date"),
                 due_date: row.get("due_date"),
@@ -593,8 +634,8 @@ impl BillsService {
         Ok(PurchaseBill {
             id: row.get("id"),
             supplier_id: row.get("supplier_id"),
-            delegate_id: row.get("delegate_id"),
-            employee_id: row.get("employee_id"),
+            delegate_id: None, // Not in database schema
+            employee_id: None, // Not in database schema
             invoice_no: row.get("invoice_no"),
             invoice_date: row.get("invoice_date"),
             due_date: row.get("due_date"),
@@ -604,10 +645,10 @@ impl BillsService {
             paid_amount: row.get("paid_amount"),
             payment_method: row.get("payment_method"),
             payment_status: row.get("payment_status"),
-            bill_type: row.get("bill_type"),
+            bill_type: "retail".to_string(), // Default value since not in database
             status: row.get("status"),
             notes: row.get("notes"),
-            barcode: row.get("barcode"),
+            barcode: None, // Not in database schema
             created_by: row.get("created_by"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
@@ -625,8 +666,8 @@ impl BillsService {
         Ok(PurchaseBill {
             id: row.get("id"),
             supplier_id: row.get("supplier_id"),
-            delegate_id: row.get("delegate_id"),
-            employee_id: row.get("employee_id"),
+            delegate_id: None, // Not in database schema
+            employee_id: None, // Not in database schema
             invoice_no: row.get("invoice_no"),
             invoice_date: row.get("invoice_date"),
             due_date: row.get("due_date"),
@@ -636,10 +677,10 @@ impl BillsService {
             paid_amount: row.get("paid_amount"),
             payment_method: row.get("payment_method"),
             payment_status: row.get("payment_status"),
-            bill_type: row.get("bill_type"),
+            bill_type: "retail".to_string(), // Default value since not in database
             status: row.get("status"),
             notes: row.get("notes"),
-            barcode: row.get("barcode"),
+            barcode: None, // Not in database schema
             created_by: row.get("created_by"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
@@ -802,11 +843,11 @@ impl BillsService {
         };
 
         sqlx::query(
-            "UPDATE stock_products SET quantity = quantity + ? WHERE product_id = ? AND stock_id = ?"
+            "UPDATE products SET current_stock = current_stock + ?, stock_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
         )
         .bind(quantity_change)
-        .bind(product_id)
         .bind(stock_id)
+        .bind(product_id)
         .execute(&mut **transaction)
         .await?;
 

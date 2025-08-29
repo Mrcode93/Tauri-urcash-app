@@ -35,10 +35,11 @@ use services::{
     settings_service::SettingsService, 
     permissions_service::PermissionsService, 
     bills_service::BillsService, 
-    cashbox_service::CashBoxService, 
+    // cashbox_service::CashBoxService, // Removed - using money boxes only 
     cloud_backup_service::CloudBackupService,
     customer_service::CustomerService,
     supplier_service::SupplierService,
+    supplier_payment_receipt_service::SupplierPaymentReceiptService,
     product_service::ProductService,
     sale_service::SaleService,
     purchase_service::PurchaseService,
@@ -64,18 +65,19 @@ use services::{
     database_service::DatabaseService,
     log_service::LogService,
     branch_config_service::BranchConfigService,
+    customer_receipts_service::CustomerReceiptsService,
 };
 use routes::{
     auth_routes, 
     user_routes, 
     license_routes, 
     bills_routes, 
-    cashbox_routes, 
     cloud_backup_routes,
     customer_routes,
     product_routes,
     sales_routes,
     suppliers_routes,
+    supplier_payment_receipts_routes,
     purchases_routes,
     reports_routes,
     expenses_routes,
@@ -93,6 +95,7 @@ use routes::{
     cache_routes,
     logs_routes,
     branch_config_routes,
+    customer_receipts_routes,
 }; 
 
 // Health check handler
@@ -308,10 +311,11 @@ async fn main() {
     let settings_service = SettingsService::new();
     let permissions_service = PermissionsService::new();
     let bills_service = BillsService::new();
-    let cashbox_service = CashBoxService::new();
+            // let cashbox_service = CashBoxService::new(); // Removed - using money boxes only
     let cloud_backup_service = CloudBackupService::new(license_service.clone());
     let customer_service = CustomerService::new();
     let supplier_service = SupplierService::new();
+    let supplier_payment_receipt_service = SupplierPaymentReceiptService::new();
     let product_service = ProductService::new();
     let sale_service = SaleService::new();
     let purchase_service = PurchaseService::new();
@@ -377,11 +381,12 @@ async fn main() {
         .merge(product_routes())
         .merge(sales_routes())
         .merge(suppliers_routes())
+        .merge(supplier_payment_receipts_routes())
         .merge(purchases_routes())
         .merge(reports_routes())
         .merge(expenses_routes())
         .merge(license_routes())
-        .merge(cashbox_routes())
+        // .merge(cashbox_routes()) // Removed - using money boxes only
         .merge(cloud_backup_routes())
         .merge(user_routes())
         .merge(debts_routes())
@@ -398,7 +403,7 @@ async fn main() {
         .merge(cache_routes())
         .merge(logs_routes())
         .merge(branch_config_routes())
-        
+        .merge(customer_receipts_routes())
         // Static file serving (equivalent to app.use('/uploads', express.static))
         .nest_service("/uploads", tower_http::services::ServeDir::new("uploads"))
         
@@ -411,11 +416,12 @@ async fn main() {
             settings_service,
             permissions_service,
             bills_service,
-            cashbox_service,
+            // cashbox_service, // Removed - using money boxes only
             cloud_backup_service,
             customer_service,
-            supplier_service,
-            product_service,
+                    supplier_service,
+        supplier_payment_receipt_service,
+        product_service,
             sale_service,
             purchase_service,
             inventory_service,
@@ -439,6 +445,7 @@ async fn main() {
             database_service: DatabaseService::new(),
             log_service: LogService::new(),
             branch_config_service: BranchConfigService::new(),
+            customer_receipts_service: CustomerReceiptsService::new(),
         })
         .layer(cors)
         .layer(middleware_stack);
@@ -479,10 +486,11 @@ pub struct AppState {
     pub settings_service: SettingsService,
     pub permissions_service: PermissionsService,
     pub bills_service: BillsService,
-    pub cashbox_service: CashBoxService,
+    // pub cashbox_service: CashBoxService, // Removed - using money boxes only
     pub cloud_backup_service: CloudBackupService,
     pub customer_service: CustomerService,
     pub supplier_service: SupplierService,
+    pub supplier_payment_receipt_service: SupplierPaymentReceiptService,
     pub product_service: ProductService,
     pub sale_service: SaleService,
     pub purchase_service: PurchaseService,
@@ -507,4 +515,5 @@ pub struct AppState {
     pub database_service: DatabaseService,
     pub log_service: LogService,
     pub branch_config_service: BranchConfigService,
+    pub customer_receipts_service: CustomerReceiptsService,
 }

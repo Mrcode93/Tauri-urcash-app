@@ -56,7 +56,7 @@ pub struct CreateProductRequest {
     pub scientific_name: Option<String>,
     pub description: Option<String>,
     pub supported: Option<bool>,
-    pub sku: String,
+    pub sku: Option<String>,
     pub barcode: Option<String>,
     pub purchase_price: f64,
     pub selling_price: f64,
@@ -79,7 +79,6 @@ pub struct CreateProductRequest {
     pub shelf_number: Option<String>,
     pub rack_number: Option<String>,
     pub bin_number: Option<String>,
-    pub supplier_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -265,4 +264,13 @@ impl Product {
             false
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImportResult {
+    pub imported: i64,
+    pub failed: i64,
+    pub total: i64,
+    pub errors: Vec<String>,
+    pub error_count: usize,
 }

@@ -226,22 +226,77 @@ impl ExpenseService {
             return Err(anyhow::anyhow!("فئة المصروف مطلوبة"));
         }
 
-        let sql = r#"
-            INSERT INTO expenses (description, amount, category, date, money_box_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        "#;
-
-        let result = sqlx::query(sql)
-            .bind(&payload.description.trim())
-            .bind(payload.amount)
-            .bind(&payload.category.trim())
-            .bind(payload.date)
+        // Check if money box exists and has sufficient balance
+        let money_box = sqlx::query("SELECT id, name, amount FROM money_boxes WHERE id = ?")
             .bind(payload.money_box_id)
-            .execute(&db.pool)
+            .fetch_optional(&db.pool)
             .await?;
 
+        if money_box.is_none() {
+            return Err(anyhow::anyhow!("صندوق المال غير موجود"));
+        }
+
+        let money_box = money_box.unwrap();
+        let current_balance: f64 = money_box.get("amount");
+        let money_box_name: String = money_box.get("name");
+
+        if current_balance < payload.amount {
+            return Err(anyhow::anyhow!(
+                "الرصيد غير كافٍ في {}. المطلوب: {}، المتوفر: {}",
+                money_box_name,
+                payload.amount,
+                current_balance
+            ));
+        }
+
+        // Start a transaction to ensure both operations succeed or fail together
+        let mut transaction = db.pool.begin().await?;
+
+        // Create the expense
+        let expense_result = sqlx::query(
+            r#"
+            INSERT INTO expenses (description, amount, category, date, money_box_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            "#
+        )
+        .bind(&payload.description.trim())
+        .bind(payload.amount)
+        .bind(&payload.category.trim())
+        .bind(payload.date)
+        .bind(payload.money_box_id)
+        .execute(&mut *transaction)
+        .await?;
+
+        // Deduct amount from money box
+        sqlx::query(
+            "UPDATE money_boxes SET amount = amount - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        )
+        .bind(payload.amount)
+        .bind(payload.money_box_id)
+        .execute(&mut *transaction)
+        .await?;
+
+        // Add transaction record to money_box_transactions
+        sqlx::query(
+            r#"
+            INSERT INTO money_box_transactions 
+            (box_id, type, amount, balance_after, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            "#
+        )
+        .bind(payload.money_box_id)
+        .bind("withdraw")
+        .bind(payload.amount)
+        .bind(current_balance - payload.amount)
+        .bind(format!("مصروف: {}", payload.description.trim()))
+        .execute(&mut *transaction)
+        .await?;
+
+        // Commit the transaction
+        transaction.commit().await?;
+
         // Get the created expense
-        let expense = self.get_by_id(db, result.last_insert_rowid()).await?;
+        let expense = self.get_by_id(db, expense_result.last_insert_rowid()).await?;
         if let Some(expense) = expense {
             Ok(expense)
         } else {
@@ -256,6 +311,7 @@ impl ExpenseService {
         if existing.is_none() {
             return Err(anyhow::anyhow!("المصروف غير موجود"));
         }
+        let existing = existing.unwrap();
 
         // Validate required fields
         if payload.description.trim().is_empty() {
@@ -270,25 +326,113 @@ impl ExpenseService {
             return Err(anyhow::anyhow!("فئة المصروف مطلوبة"));
         }
 
-        let sql = r#"
+        // Check if money box exists and has sufficient balance (if amount increased)
+        let amount_difference = payload.amount - existing.amount;
+        if amount_difference > 0.0 {
+            let money_box = sqlx::query("SELECT id, name, amount FROM money_boxes WHERE id = ?")
+                .bind(payload.money_box_id)
+                .fetch_optional(&db.pool)
+                .await?;
+
+            if money_box.is_none() {
+                return Err(anyhow::anyhow!("صندوق المال غير موجود"));
+            }
+
+            let money_box = money_box.unwrap();
+            let current_balance: f64 = money_box.get("amount");
+            let money_box_name: String = money_box.get("name");
+
+            if current_balance < amount_difference {
+                return Err(anyhow::anyhow!(
+                    "الرصيد غير كافٍ في {}. المطلوب: {}، المتوفر: {}",
+                    money_box_name,
+                    amount_difference,
+                    current_balance
+                ));
+            }
+        }
+
+        // Start a transaction
+        let mut transaction = db.pool.begin().await?;
+
+        // Update the expense
+        let changes = sqlx::query(
+            r#"
             UPDATE expenses
             SET description = ?, amount = ?, category = ?, date = ?, money_box_id = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        "#;
-
-        let changes = sqlx::query(sql)
-            .bind(&payload.description.trim())
-            .bind(payload.amount)
-            .bind(&payload.category.trim())
-            .bind(payload.date)
-            .bind(payload.money_box_id)
-            .bind(id)
-            .execute(&db.pool)
-            .await?;
+            "#
+        )
+        .bind(&payload.description.trim())
+        .bind(payload.amount)
+        .bind(&payload.category.trim())
+        .bind(payload.date)
+        .bind(payload.money_box_id)
+        .bind(id)
+        .execute(&mut *transaction)
+        .await?;
 
         if changes.rows_affected() == 0 {
             return Err(anyhow::anyhow!("فشل في تحديث المصروف"));
         }
+
+        // Handle money box balance changes
+        if amount_difference != 0.0 {
+            // If amount increased, deduct the difference
+            if amount_difference > 0.0 {
+                sqlx::query(
+                    "UPDATE money_boxes SET amount = amount - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+                )
+                .bind(amount_difference)
+                .bind(payload.money_box_id)
+                .execute(&mut *transaction)
+                .await?;
+
+                // Add transaction record
+                sqlx::query(
+                    r#"
+                    INSERT INTO money_box_transactions 
+                    (box_id, type, amount, balance_after, notes, created_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    "#
+                )
+                .bind(payload.money_box_id)
+                .bind("withdraw")
+                .bind(amount_difference)
+                .bind(0.0) // Will be calculated
+                .bind(format!("تحديث مصروف: {}", payload.description.trim()))
+                .execute(&mut *transaction)
+                .await?;
+            } else {
+                // If amount decreased, add back the difference
+                sqlx::query(
+                    "UPDATE money_boxes SET amount = amount + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+                )
+                .bind(-amount_difference)
+                .bind(payload.money_box_id)
+                .execute(&mut *transaction)
+                .await?;
+
+                // Add transaction record
+                sqlx::query(
+                    r#"
+                    INSERT INTO money_box_transactions 
+                    (box_id, type, amount, balance_after, notes, created_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    "#
+                )
+                .bind(payload.money_box_id)
+                .bind("deposit")
+                .bind(-amount_difference)
+                .bind(0.0) // Will be calculated
+                .bind(format!("إرجاع مصروف: {}", payload.description.trim()))
+                .execute(&mut *transaction)
+                .await?;
+            }
+        }
+
+        // Commit the transaction
+        transaction.commit().await?;
 
         // Get the updated expense
         let expense = self.get_by_id(db, id).await?;
@@ -308,14 +452,48 @@ impl ExpenseService {
         }
         let expense = expense.unwrap();
 
+        // Start a transaction
+        let mut transaction = db.pool.begin().await?;
+
+        // Delete the expense
         let changes = sqlx::query("DELETE FROM expenses WHERE id = ?")
             .bind(id)
-            .execute(&db.pool)
+            .execute(&mut *transaction)
             .await?;
 
         if changes.rows_affected() == 0 {
             return Err(anyhow::anyhow!("فشل في حذف المصروف"));
         }
+
+        // Restore money box balance
+        if let Some(money_box_id) = expense.money_box_id {
+            sqlx::query(
+                "UPDATE money_boxes SET amount = amount + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            )
+            .bind(expense.amount)
+            .bind(money_box_id)
+            .execute(&mut *transaction)
+            .await?;
+
+            // Add transaction record
+            sqlx::query(
+                r#"
+                INSERT INTO money_box_transactions 
+                (box_id, type, amount, balance_after, notes, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                "#
+            )
+            .bind(money_box_id)
+            .bind("deposit")
+            .bind(expense.amount)
+            .bind(0.0) // Will be calculated
+            .bind(format!("حذف مصروف: {}", expense.description))
+            .execute(&mut *transaction)
+            .await?;
+        }
+
+        // Commit the transaction
+        transaction.commit().await?;
 
         Ok(expense)
     }

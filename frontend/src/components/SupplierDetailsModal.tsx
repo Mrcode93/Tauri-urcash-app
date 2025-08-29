@@ -100,13 +100,13 @@ const SupplierDetailsModal = ({ open, onOpenChange, supplier }: SupplierDetailsM
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto scrollbar-hide">
         <DialogHeader>
           <div className="flex justify-between items-center">
             <Button variant="outline" size="icon" onClick={handleRefresh} disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
-            <DialogTitle className="text-right">تفاصيل المورد: {supplier.name}</DialogTitle>
+            <DialogTitle className="text-center">تفاصيل المورد: {supplier.name}</DialogTitle>
           </div>
         </DialogHeader>
 

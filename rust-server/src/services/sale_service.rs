@@ -350,9 +350,49 @@ impl SaleService {
             return Err(anyhow::anyhow!("Sale must have at least one item"));
         }
 
+        // Validate customer exists (if not anonymous)
+        if let Some(customer_id) = sale_data.customer_id {
+            if customer_id != 999 { // Skip validation for anonymous customer
+                let customer_exists = sqlx::query("SELECT id FROM customers WHERE id = ?")
+                    .bind(customer_id)
+                    .fetch_optional(&db.pool)
+                    .await?;
+                
+                if customer_exists.is_none() {
+                    return Err(anyhow::anyhow!("Customer with ID {} does not exist", customer_id));
+                }
+            }
+        }
+
+        // Validate delegate exists (if provided)
+        if let Some(delegate_id) = sale_data.delegate_id {
+            let delegate_exists = sqlx::query("SELECT id FROM representatives WHERE id = ?")
+                .bind(delegate_id)
+                .fetch_optional(&db.pool)
+                .await?;
+            
+            if delegate_exists.is_none() {
+                return Err(anyhow::anyhow!("Delegate with ID {} does not exist", delegate_id));
+            }
+        }
+
         // Validate each sale item
         for item in &sale_data.items {
             Self::validate_sale_item(item)?;
+            
+            // Validate product exists (if not manual item)
+            if !item.is_manual_item() {
+                if let Some(product_id) = item.product_id {
+                    let product_exists = sqlx::query("SELECT id FROM products WHERE id = ? AND is_active = 1")
+                        .bind(product_id)
+                        .fetch_optional(&db.pool)
+                        .await?;
+                    
+                    if product_exists.is_none() {
+                        return Err(anyhow::anyhow!("Product with ID {} does not exist or is not active", product_id));
+                    }
+                }
+            }
         }
 
         // Validate payment method and status
@@ -425,7 +465,7 @@ impl SaleService {
                 .bind("completed")
                 .bind(&sale_data.notes)
                 .bind(sale_data.barcode)
-                .bind(sale_data.customer_id) // created_by - using customer_id as placeholder
+                .bind(Some(1i64)) // created_by - using admin user ID
                 .execute(&mut *tx)
                 .await?
                 .last_insert_rowid();

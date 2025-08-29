@@ -88,7 +88,7 @@ pub struct RepayDebtRequest {
     pub reference_number: Option<String>,
     pub notes: Option<String>,
     pub receipt_date: Option<NaiveDate>,
-    pub money_box_id: Option<i64>,
+    pub money_box_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

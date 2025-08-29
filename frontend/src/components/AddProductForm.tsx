@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '@/app/store';
-import { createProduct, getCategories, addCategory } from '@/features/inventory/inventorySlice';
-import { getSuppliers } from '@/features/suppliers/suppliersSlice';
+import { createProduct } from '@/features/inventory/inventorySlice';
+// import { getSuppliers } from '@/features/suppliers/suppliersSlice';
 import { Product } from '@/features/inventory/inventoryService';
 import { stocksService, Stock } from '@/features/stocks/stocksService';
 import { Button } from '@/components/ui/button';
@@ -14,14 +14,15 @@ import { toast } from "@/lib/toast";
 import { Loader2, Package, Tag, FileText, DollarSign, Calendar, AlertTriangle, Keyboard, Building, Plus, Warehouse } from 'lucide-react';
 import { useFormNavigation } from '@/hooks/useFormNavigation';
 import { Switch } from '@/components/ui/switch';
-import SupplierForm from './SupplierForm';
-import CategoryForm from './CategoryForm';
+// import SupplierForm from './SupplierForm';
+// import CategoryForm from './CategoryForm';
 
 const unitOptions = ["قطعة", "علبة", "كرتون", "كيلوغرام", "لتر", "متر", "صندوق", "عبوة", "زجاجة"];
 
 const initialFormData = {
   name: '',
   description: '',
+  sku: '',
   scientific_name: '',
   barcode: '',
   supported: false,
@@ -51,33 +52,25 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
   const [formData, setFormData] = useState({
     ...initialFormData,
     barcode: initialBarcode || '',
-    primary_supplier_id: null,
   });
-  const suppliers = useSelector((state: RootState) => state.suppliers.suppliers);
-  const suppliersLoading = useSelector((state: RootState) => state.suppliers.isLoading);
-  const categories = useSelector((state: RootState) => state.inventory.categories);
-  const categoriesLoading = useSelector((state: RootState) => state.inventory.categoriesLoading);
-  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
-  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
-  const [suppliersFetched, setSuppliersFetched] = useState(false);
-  const [categoriesFetched, setCategoriesFetched] = useState(false);
+  // Categories disabled - no longer using categories from server
+  // const categories = useSelector((state: RootState) => state.inventory.categories);
+  // const categoriesLoading = useSelector((state: RootState) => state.inventory.categoriesLoading);
+  // const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  // const [categoriesFetched, setCategoriesFetched] = useState(false);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [stocksLoading, setStocksLoading] = useState(false);
   const [stocksFetched, setStocksFetched] = useState(false);
 
-  useEffect(() => {
-    if (!suppliersFetched) {
-      dispatch(getSuppliers());
-      setSuppliersFetched(true);
-    }
-  }, [dispatch, suppliersFetched]);
+  // Supplier fetching removed - simplified product creation
 
-  useEffect(() => {
-    if (!categoriesFetched) {
-      dispatch(getCategories());
-      setCategoriesFetched(true);
-    }
-  }, [dispatch, categoriesFetched]);
+  // Categories are disabled - no longer used
+  // useEffect(() => {
+  //   if (!categoriesFetched) {
+  //     dispatch(getCategories());
+  //     setCategoriesFetched(true);
+  //   }
+  // }, [dispatch, categoriesFetched]);
 
   useEffect(() => {
     if (!stocksFetched) {
@@ -102,6 +95,7 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
   // Define field order for navigation
   const fieldOrder = [
     'name',
+    'sku',
     'scientific_name',
     'barcode', 
     'description',
@@ -118,7 +112,6 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
     'expiry_date',
     'category_id',
     'stock_id',
-    'primary_supplier_id',
   ];
 
   const { setInputRef, handleKeyDown, focusFirstField } = useFormNavigation({
@@ -156,38 +149,37 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
   };
 
   const handleSupplierChange = (value: string) => {
-    setFormData(prev => ({ ...prev, primary_supplier_id: value ? parseInt(value) : null }));
+            // Supplier selection removed - simplified product creation
   };
 
-  const handleCategoryChange = (value: string) => {
-    setFormData(prev => ({ ...prev, category_id: value ? parseInt(value) : null }));
-  };
+  // Category selection removed - keeping category_id as null
+  // const handleCategoryChange = (value: string) => {
+  //   setFormData(prev => ({ ...prev, category_id: value ? parseInt(value) : null }));
+  // };
 
   const handleStockChange = (value: string) => {
     setFormData(prev => ({ ...prev, stock_id: value ? parseInt(value) : null }));
   };
 
-  const handleSupplierSuccess = (supplier: any) => {
-    // Select the new supplier
-    setFormData(prev => ({ ...prev, primary_supplier_id: supplier.id }));
-    // Refresh suppliers list
-    dispatch(getSuppliers());
+      const handleSupplierSuccess = (supplier: { id: number }) => {
+    // Supplier selection removed - simplified product creation
   };
 
-  const handleCategorySuccess = (category: any) => {
-    // Select the new category
-    setFormData(prev => ({ ...prev, category_id: category.id }));
-    // Refresh categories list
-    dispatch(getCategories());
-  };
+  // Category functionality removed
+  // const handleCategorySuccess = (category: any) => {
+  //   // Select the new category
+  //   setFormData(prev => ({ ...prev, category_id: category.id }));
+  //   // Refresh categories list
+  //   dispatch(getCategories());
+  // };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // Validate required fields (supplier is now optional)
+      // Validate required fields (supplier and SKU are now optional)
       if (!formData.name || !formData.purchase_price || !formData.selling_price || !formData.unit) {
-        toast.error('يرجى تعبئة جميع الحقول المطلوبة');
+        toast.error('يرجى تعبئة جميع الحقول المطلوبة (الاسم، أسعار، الوحدة)');
         setLoading(false);
         return;
       }
@@ -199,7 +191,7 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
       }
       const newProduct = await dispatch(createProduct(formData)).unwrap();
       toast.success('تم إضافة المنتج بنجاح');
-      setFormData({ ...initialFormData, barcode: '', primary_supplier_id: null, stock_id: null });
+      setFormData({ ...initialFormData, barcode: '', sku: '', stock_id: 1 });
       onSuccess(newProduct);
     } catch (error) {
       toast.error('حدث خطأ أثناء إضافة المنتج');
@@ -241,6 +233,7 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
               placeholder="أدخل اسم المنتج"
             />
           </div>
+      
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Tag className="h-4 w-4" />
@@ -266,7 +259,7 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
               onCheckedChange={value => setFormData(prev => ({ ...prev, supported: value }))}
             />
           </div>
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               الوصف
@@ -279,7 +272,7 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
               rows={3}
               placeholder="أدخل وصف المنتج"
             />
-          </div>
+          </div> */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Tag className="h-4 w-4" />
@@ -453,48 +446,8 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
               ref={setInputRef('expiry_date')}
             />
           </div>
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Tag className="h-4 w-4" />
-              الفئة (اختيارية)
-            </Label>
-            <Select
-              value={formData.category_id ? String(formData.category_id) : ''}
-              onValueChange={handleCategoryChange}
-              disabled={categoriesLoading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={categoriesLoading ? 'جاري التحميل...' : 'اختر الفئة (اختياري)'} />
-              </SelectTrigger>
-              <SelectContent>
-                {categories && categories.length > 0 ? (
-                  categories.map((category) => (
-                    <SelectItem key={category.id} value={String(category.id)}>
-                      {category.name}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="none" disabled>
-                    لا يوجد فئات
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              variant="link"
-              className="text-blue-600 px-0 mt-1"
-              onClick={() => setCategoryModalOpen(true)}
-            >
-              + إضافة فئة جديدة
-            </Button>
-            <CategoryForm
-              open={categoryModalOpen}
-              onOpenChange={setCategoryModalOpen}
-              onSuccess={handleCategorySuccess}
-            />
-          </div>
-          <div className="space-y-2">
+          {/* Category selection removed - categories are not implemented in backend */}
+          {/* <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Warehouse className="h-4 w-4" />
               المخزن (اختياري)
@@ -509,7 +462,7 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
               </SelectTrigger>
               <SelectContent>
                 {stocks && stocks.length > 0 ? (
-                  stocks.map((stock) => (
+                  stocks?.map((stock) => (
                     <SelectItem key={stock.id} value={String(stock.id)}>
                       {stock.name} {stock.is_main_stock && '(رئيسي)'}
                     </SelectItem>
@@ -521,54 +474,14 @@ const AddProductForm = ({ initialBarcode = '', onSuccess, onCancel }: AddProduct
                 )}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              المورد (اختياري)
-            </Label>
-            <Select
-              value={formData.primary_supplier_id ? String(formData.primary_supplier_id) : ''}
-              onValueChange={handleSupplierChange}
-              disabled={suppliersLoading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={suppliersLoading ? 'جاري التحميل...' : 'اختر المورد (اختياري)'} />
-              </SelectTrigger>
-              <SelectContent>
-                {suppliers && suppliers.length > 0 ? (
-                  suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={String(supplier.id)}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="none" disabled>
-                    لا يوجد موردون
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              variant="link"
-              className="text-blue-600 px-0 mt-1"
-              onClick={() => setSupplierModalOpen(true)}
-            >
-              + إضافة مورد جديد
-            </Button>
-            <SupplierForm
-              open={supplierModalOpen}
-              onOpenChange={setSupplierModalOpen}
-              onSuccess={handleSupplierSuccess}
-            />
-          </div>
+          </div> */}
+          {/* Supplier selection removed - simplified product creation */}
         </div>
         <div className="flex justify-end gap-2 pt-4 border-t">
           <Button
             type="button"
             variant="outline"
-            onClick={() => setFormData({ ...initialFormData, barcode: initialBarcode, primary_supplier_id: null, stock_id: null })}
+            onClick={() => setFormData({ ...initialFormData, barcode: initialBarcode, stock_id: null })}
             disabled={loading}
           >
             إعادة تعيين

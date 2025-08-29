@@ -695,7 +695,7 @@ impl StockService {
                 .bind(stock_id)
                 .bind(request.product_id)
                 .bind(request.quantity)
-                .bind("stock_addition")
+                .bind("adjustment")
                 .bind(reference_number)
                 .bind(notes)
                 .bind(1) // created_by - placeholder
@@ -709,6 +709,8 @@ impl StockService {
 
     // Helper method to map database row to StockWithStats
     async fn map_stock_row_to_with_stats(&self, row: sqlx::sqlite::SqliteRow) -> Result<StockWithStats> {
+        let total_stock_quantity: i64 = row.get("total_stock_quantity");
+        
         Ok(StockWithStats {
             id: row.get("id"),
             name: row.get("name"),
@@ -727,13 +729,13 @@ impl StockService {
             is_main_stock: row.get("is_main_stock"),
             is_active: row.get("is_active"),
             capacity: row.get("capacity"),
-            current_capacity_used: row.get("current_capacity_used"),
+            current_capacity_used: total_stock_quantity, // Use calculated total_stock_quantity instead of database field
             notes: row.get("notes"),
             created_by: row.get("created_by"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
             total_products: row.get("total_products"),
-            total_stock_quantity: row.get("total_stock_quantity"),
+            total_stock_quantity: total_stock_quantity,
         })
     }
 

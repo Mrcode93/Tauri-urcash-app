@@ -57,7 +57,7 @@ export interface CustomerReceipt {
   payment_method: 'cash' | 'card' | 'bank_transfer' | 'check';
   reference_number?: string;
   notes?: string;
-  money_box_id?: string;
+  money_box_id?: number;
   delegate_id?: number;
   delegate_name?: string;
   delegate_phone?: string;
@@ -78,7 +78,7 @@ export interface CreateCustomerReceiptData {
   reference_number?: string;
   notes?: string;
   receipt_number?: string;
-  money_box_id?: string;
+  money_box_id?: number;
   delegate_id?: number;
   employee_id?: number;
 }
@@ -351,6 +351,39 @@ class CustomerReceiptsService {
     const link = document.createElement('a');
     link.href = url;
     link.download = `customer_receipts_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
+  // Export receipts to PDF
+  async exportToPDF(filters: CustomerReceiptFilters = {}): Promise<Blob> {
+    const params = new URLSearchParams();
+    
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value.toString());
+      }
+    });
+
+    try {
+      const response = await api.get(`/customer-receipts/export-pdf?${params.toString()}`, {
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      handleCustomerReceiptsApiError(error, 'exportToPDF');
+    }
+  }
+
+  // Download PDF file
+  async downloadPDF(filters: CustomerReceiptFilters = {}): Promise<void> {
+    const blob = await this.exportToPDF(filters);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `customer_receipts_${new Date().toISOString().split('T')[0]}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

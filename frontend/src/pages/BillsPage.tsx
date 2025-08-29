@@ -11,6 +11,7 @@ import {
   setReturnBillsFilters,
   clearAllBills
 } from '../features/bills/billsSlice';
+import { fetchDelegates } from '../features/delegates/delegatesSlice';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -43,13 +44,14 @@ import ReturnBillsTab from '../components/bills/ReturnBillsTab';
 import CreateReturnBillModal from '../components/bills/CreateReturnBillModal';
 import CreateEnhancedSaleBillModal from '../components/bills/CreateEnhancedSaleBillModal';
 import CreatePurchaseInvoiceModal from '../components/bills/CreatePurchaseInvoiceModal';
-import { CashBoxGuard } from '../components/CashBoxGuard';
+// import { CashBoxGuard } from '../components/CashBoxGuard'; // Removed - using money boxes only
 
 const BillsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   
   // Get data from bills state (which includes return information)
   const billsState = useSelector((state: RootState) => state.bills);
+  const { delegates = [], loading: delegatesLoading } = useSelector((state: RootState) => state.delegates);
   
   const { 
     saleBills = [],
@@ -80,6 +82,7 @@ const BillsPage: React.FC = () => {
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [statusFilter, setStatusFilter] = useState('all');
   const [billTypeFilter, setBillTypeFilter] = useState('all');
+  const [delegateFilter, setDelegateFilter] = useState('all');
 
   // Load initial data
   useEffect(() => {
@@ -99,6 +102,7 @@ const BillsPage: React.FC = () => {
       dispatch(fetchBillsStatistics({}));
       dispatch(fetchPurchasesStatistics({}));
       dispatch(fetchReturnsStatistics({}));
+      dispatch(fetchDelegates({ page: 1, limit: 100 }));
     };
     
     loadData();
@@ -111,7 +115,8 @@ const BillsPage: React.FC = () => {
       date_from: dateFrom?.toISOString().split('T')[0],
       date_to: dateTo?.toISOString().split('T')[0],
       payment_status: statusFilter === 'all' ? undefined : statusFilter,
-      bill_type: billTypeFilter === 'all' ? undefined : billTypeFilter as 'retail' | 'wholesale'
+      bill_type: billTypeFilter === 'all' ? undefined : billTypeFilter as 'retail' | 'wholesale',
+      delegate_id: delegateFilter === 'all' ? undefined : parseInt(delegateFilter)
     };
 
          if (activeTab === 'sale') {
@@ -132,6 +137,7 @@ const BillsPage: React.FC = () => {
     setDateTo(undefined);
     setStatusFilter('all');
     setBillTypeFilter('all');
+    setDelegateFilter('all');
     
          // Force reload data for the selected tab
      if (value === 'sale') {
@@ -177,8 +183,7 @@ const BillsPage: React.FC = () => {
 
 
   return (
-    <CashBoxGuard operationType="إنشاء الفواتير">
-      <div className="min-w-full mx-auto p-6 space-y-6">
+    <div className="min-w-full mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -274,7 +279,7 @@ const BillsPage: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
               <Input
                 placeholder="البحث في الفواتير..."
@@ -346,6 +351,23 @@ const BillsPage: React.FC = () => {
                 </Select>
               </div>
             )}
+            {activeTab === 'sale' && (
+              <div>
+                <Select value={delegateFilter} onValueChange={setDelegateFilter} disabled={delegatesLoading}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={delegatesLoading ? "جاري التحميل..." : "المندوب"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع المندوبين</SelectItem>
+                    {delegates.map((delegate) => (
+                      <SelectItem key={delegate.id} value={delegate.id.toString()}>
+                        {delegate.name} - {delegate.phone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <div className="flex justify-end mt-4">
             <Button onClick={handleSearch}>
@@ -410,7 +432,6 @@ const BillsPage: React.FC = () => {
 
       {/* Error handling will be done in useEffect */}
       </div>
-    </CashBoxGuard>
   );
 };
 

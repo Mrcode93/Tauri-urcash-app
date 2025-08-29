@@ -3,8 +3,9 @@ use crate::database::Database;
 use crate::models::{
     Product, ProductQuery, CreateProductRequest, UpdateProductRequest, 
     ProductListResponse, ProductWithDetails, ProductSearchResponse, 
-    UpdateStockRequest, LowStockProduct
+    UpdateStockRequest, LowStockProduct, ImportResult
 };
+use crate::utils::generate_unique_sku;
 use sqlx::{Row, SqlitePool};
 use tracing::{info, warn, error};
 use chrono::{Utc, DateTime, NaiveDate, NaiveDateTime};
@@ -67,12 +68,10 @@ impl ProductService {
         let query_str = format!(
             r#"
             SELECT 
-                p.*, c.name as category_name, s.name as stock_name,
-                pps.supplier_name
+                p.*, c.name as category_name, s.name as stock_name
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stocks s ON p.stock_id = s.id
-            LEFT JOIN product_primary_suppliers pps ON p.id = pps.product_id
             WHERE {}
             ORDER BY p.name ASC
             LIMIT ? OFFSET ?
@@ -125,7 +124,7 @@ impl ProductService {
                 last_stock_check: row.get("last_stock_check"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
-                supplier_name: row.get("supplier_name"),
+                supplier_name: None, // Removed supplier relationship
                 category_name: row.get("category_name"),
                 stock_name: row.get("stock_name"),
             })
@@ -146,12 +145,10 @@ impl ProductService {
     pub async fn get_by_id(&self, db: &Database, id: i64) -> Result<Option<ProductWithDetails>> {
         let query = r#"
             SELECT 
-                p.*, c.name as category_name, s.name as stock_name,
-                pps.supplier_name
+                p.*, c.name as category_name, s.name as stock_name
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stocks s ON p.stock_id = s.id
-            LEFT JOIN product_primary_suppliers pps ON p.id = pps.product_id
             WHERE p.id = ?
         "#;
 
@@ -196,12 +193,12 @@ impl ProductService {
                 last_stock_check: row.get("last_stock_check"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
-                supplier_name: row.get("supplier_name"),
+                supplier_name: None, // Removed supplier relationship
                 category_name: row.get("category_name"),
                 stock_name: row.get("stock_name"),
             }))
         } else {
-        Ok(None)
+            Ok(None)
         }
     }
 
@@ -220,14 +217,21 @@ impl ProductService {
             return Err(anyhow::anyhow!("سعر البيع يجب أن يكون أكبر من أو يساوي سعر الشراء"));
         }
 
-        // Check if SKU already exists
-        let existing_sku = sqlx::query("SELECT id FROM products WHERE sku = ?")
-            .bind(&payload.sku)
-            .fetch_optional(&db.pool)
-            .await?;
-        if existing_sku.is_some() {
-            return Err(anyhow::anyhow!("رمز المنتج موجود مسبقاً"));
-        }
+        // Generate unique SKU if not provided
+        let sku = if let Some(provided_sku) = &payload.sku {
+            // Check if provided SKU already exists
+            let existing_sku = sqlx::query("SELECT id FROM products WHERE sku = ?")
+                .bind(provided_sku)
+                .fetch_optional(&db.pool)
+                .await?;
+            if existing_sku.is_some() {
+                return Err(anyhow::anyhow!("رمز المنتج موجود مسبقاً"));
+            }
+            provided_sku.clone()
+        } else {
+            // Auto-generate unique SKU based on product name
+            generate_unique_sku(&payload.name, &db.pool).await?
+        };
 
         // Check if barcode already exists
         if let Some(ref barcode) = payload.barcode {
@@ -240,6 +244,21 @@ impl ProductService {
             }
         }
 
+        // If no stock_id is provided, assign to main stock automatically
+        let stock_id = if let Some(provided_stock_id) = payload.stock_id {
+            provided_stock_id
+        } else {
+            // Get main stock ID
+            let main_stock = sqlx::query("SELECT id FROM stocks WHERE is_main_stock = 1 AND is_active = 1 LIMIT 1")
+                .fetch_optional(&db.pool)
+                .await?;
+
+            match main_stock {
+                Some(row) => row.get::<i64, _>("id"),
+                None => return Err(anyhow::anyhow!("لم يتم العثور على مخزن رئيسي. يرجى إنشاء مخزن رئيسي أولاً"))
+            }
+        };
+
         // Use database transaction to ensure consistency
         let result = sqlx::query(r#"
             INSERT INTO products (
@@ -248,15 +267,14 @@ impl ProductService {
                 current_stock, min_stock, max_stock, unit, units_per_box,
                 is_dolar, expiry_date, is_active, last_purchase_price,
                 average_cost, reorder_point, category_id, stock_id,
-                location_in_stock, shelf_number, rack_number, bin_number,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                location_in_stock, shelf_number, rack_number, bin_number
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#)
         .bind(&payload.name)
         .bind(&payload.scientific_name)
         .bind(&payload.description)
         .bind(payload.supported.unwrap_or(true))
-        .bind(&payload.sku)
+        .bind(&sku)
         .bind(&payload.barcode)
         .bind(payload.purchase_price)
         .bind(payload.selling_price)
@@ -274,7 +292,7 @@ impl ProductService {
         .bind(payload.average_cost.unwrap_or(0.0))
         .bind(payload.reorder_point.unwrap_or(0))
         .bind(payload.category_id)
-        .bind(payload.stock_id)
+        .bind(stock_id)
         .bind(&payload.location_in_stock)
         .bind(&payload.shelf_number)
         .bind(&payload.rack_number)
@@ -284,67 +302,7 @@ impl ProductService {
 
         let product_id = result.last_insert_rowid();
 
-        // If the product has initial stock and a supplier, create purchase records
-        if let (Some(current_stock), Some(supplier_id)) = (payload.current_stock, payload.supplier_id) {
-            if current_stock > 0 {
-                // Create product-supplier relationship
-                sqlx::query(r#"
-                    INSERT INTO product_suppliers (
-                        product_id, supplier_id, is_primary, supplier_price,
-                        lead_time_days, minimum_order_quantity, is_active,
-                        created_at, updated_at
-                    ) VALUES (?, ?, 1, ?, 7, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                "#)
-                .bind(product_id)
-                .bind(supplier_id)
-                .bind(payload.purchase_price)
-                .execute(&db.pool)
-                .await?;
-
-                // Create purchase record
-                let purchase_id = sqlx::query(r#"
-                    INSERT INTO purchases (
-                        supplier_id, invoice_no, invoice_date, total_amount,
-                        net_amount, payment_method, payment_status, status,
-                        notes, created_by, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                "#)
-                .bind(supplier_id)
-                .bind(format!("INV-{}-{}", chrono::Utc::now().timestamp(), product_id))
-                .bind(chrono::Utc::now().date_naive())
-                .bind(payload.purchase_price * current_stock as f64)
-                .bind(payload.purchase_price * current_stock as f64)
-                .bind("cash")
-                .bind("paid")
-                .bind("completed")
-                .bind(format!("شراء تلقائي للمخزون الأولي للمنتج {}", payload.name))
-                .bind(1) // Default admin user
-                .execute(&db.pool)
-                .await?
-                .last_insert_rowid();
-
-                // Create purchase item record
-                sqlx::query(r#"
-                    INSERT INTO purchase_items (
-                        purchase_id, product_id, quantity, unit_price,
-                        subtotal, notes, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                "#)
-                .bind(purchase_id)
-                .bind(product_id)
-                .bind(current_stock)
-                .bind(payload.purchase_price)
-                .bind(payload.purchase_price * current_stock as f64)
-                .bind("شراء مخزون أولي")
-                .execute(&db.pool)
-                .await?;
-
-                info!("Auto-created purchase record for product {}: product_id={}, purchase_id={}, quantity={}, supplier_id={}", 
-                    payload.name, product_id, purchase_id, current_stock, supplier_id);
-            }
-        }
-
-        // Get the created product
+        // Fetch the created product with details
         let product = self.get_by_id(db, product_id).await?;
         if let Some(product) = product {
             Ok(product)
@@ -600,12 +558,10 @@ impl ProductService {
         
         let products = sqlx::query(r#"
             SELECT 
-                p.*, c.name as category_name, s.name as stock_name,
-                pps.supplier_name
+                p.*, c.name as category_name, s.name as stock_name
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stocks s ON p.stock_id = s.id
-            LEFT JOIN product_primary_suppliers pps ON p.id = pps.product_id
             WHERE (p.name LIKE ? OR p.description LIKE ?) 
             AND p.is_active = 1
             ORDER BY p.name ASC
@@ -650,7 +606,7 @@ impl ProductService {
             last_stock_check: row.get("last_stock_check"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
-            supplier_name: row.get("supplier_name"),
+            supplier_name: None, // Removed supplier relationship
             category_name: row.get("category_name"),
             stock_name: row.get("stock_name"),
         })
@@ -663,12 +619,10 @@ impl ProductService {
     pub async fn get_by_barcode(&self, db: &Database, barcode: &str) -> Result<Option<ProductWithDetails>> {
         let result = sqlx::query(r#"
             SELECT 
-                p.*, c.name as category_name, s.name as stock_name,
-                pps.supplier_name
+                p.*, c.name as category_name, s.name as stock_name
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stocks s ON p.stock_id = s.id
-            LEFT JOIN product_primary_suppliers pps ON p.id = pps.product_id
             WHERE p.barcode = ? AND p.is_active = 1
         "#)
         .bind(barcode)
@@ -711,12 +665,12 @@ impl ProductService {
                 last_stock_check: row.get("last_stock_check"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
-                supplier_name: row.get("supplier_name"),
+                supplier_name: None, // Removed supplier relationship
                 category_name: row.get("category_name"),
                 stock_name: row.get("stock_name"),
             }))
         } else {
-        Ok(None)
+            Ok(None)
         }
     }
 
@@ -725,11 +679,10 @@ impl ProductService {
         let products = sqlx::query(r#"
             SELECT 
                 p.id, p.name, p.sku, p.barcode, p.current_stock, p.min_stock, p.unit,
-                c.name as category_name, s.name as stock_name, pps.supplier_name
+                c.name as category_name, s.name as stock_name
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stocks s ON p.stock_id = s.id
-            LEFT JOIN product_primary_suppliers pps ON p.id = pps.product_id
             WHERE p.current_stock <= ? AND p.is_active = 1
             ORDER BY p.current_stock ASC
         "#)
@@ -745,7 +698,7 @@ impl ProductService {
             current_stock: row.get("current_stock"),
             min_stock: row.get("min_stock"),
             unit: row.get("unit"),
-            supplier_name: row.get("supplier_name"),
+            supplier_name: None, // Removed supplier relationship
             category_name: row.get("category_name"),
             stock_name: row.get("stock_name"),
         })
@@ -764,7 +717,7 @@ impl ProductService {
         let select_fields = if let Some(fields) = &query.fields {
             fields.split(',').map(|f| format!("p.{}", f.trim())).collect::<Vec<_>>().join(", ")
         } else {
-            "p.id, p.name, p.sku, p.barcode, p.selling_price, p.current_stock, p.unit, p.min_stock, p.units_per_box".to_string()
+            "p.id, p.name, p.scientific_name, p.description, p.supported, p.sku, p.barcode, p.purchase_price, p.selling_price, p.wholesale_price, p.company_name, p.current_stock, p.min_stock, p.max_stock, p.total_sold, p.total_purchased, p.unit, p.units_per_box, p.is_dolar, p.expiry_date, p.is_active, p.last_purchase_date, p.last_purchase_price, p.average_cost, p.reorder_point, p.category_id, p.stock_id, p.location_in_stock, p.shelf_number, p.rack_number, p.bin_number, p.last_stock_check, p.created_at, p.updated_at".to_string()
         };
 
         let mut where_conditions = vec!["1=1".to_string()];
@@ -790,8 +743,10 @@ impl ProductService {
         // Get products
         let query_str = format!(
             r#"
-            SELECT {}
+            SELECT {}, c.name as category_name, s.name as stock_name
             FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN stocks s ON p.stock_id = s.id
             WHERE {}
             ORDER BY p.name ASC
             LIMIT ? OFFSET ?
@@ -844,7 +799,7 @@ impl ProductService {
                 last_stock_check: row.get("last_stock_check"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),
-                supplier_name: row.get("supplier_name"),
+                supplier_name: None, // Removed supplier relationship
                 category_name: row.get("category_name"),
                 stock_name: row.get("stock_name"),
             })
@@ -895,5 +850,445 @@ impl ProductService {
         .await?;
 
         Ok(changes.rows_affected() > 0)
+    }
+
+    // Import products from Excel/CSV file
+    pub async fn import_products(&self, db: &Database, file_content: &[u8], filename: &str) -> Result<ImportResult> {
+        use calamine::{open_workbook, DataType, Xlsx, Reader};
+        use std::io::Cursor;
+        use chrono::NaiveDate;
+
+        let mut errors = Vec::new();
+        let mut imported = 0;
+        let mut failed = 0;
+        let mut total = 0;
+
+        // Get default stock ID
+        let default_stock = sqlx::query("SELECT id FROM stocks WHERE is_main_stock = 1 AND is_active = 1 LIMIT 1")
+            .fetch_optional(&db.pool)
+            .await?;
+
+        let default_stock_id = match default_stock {
+            Some(row) => row.get::<i64, _>("id"),
+            None => return Err(anyhow::anyhow!("No default main stock found. Please create a main stock first."))
+        };
+
+        // Determine file type and process accordingly
+        if filename.to_lowercase().ends_with(".xlsx") || filename.to_lowercase().ends_with(".xls") {
+            // Process Excel file using temporary file
+            use std::fs::File;
+            use std::io::Write;
+            use tempfile::NamedTempFile;
+            
+            // Create temporary file
+            let mut temp_file = NamedTempFile::new()?;
+            temp_file.write_all(file_content)?;
+            let temp_path = temp_file.path();
+            
+            // Open workbook from temporary file
+            let mut workbook: Xlsx<_> = open_workbook(temp_path)?;
+            
+            if let Some(Ok(range)) = workbook.worksheet_range_at(0) {
+                let rows: Vec<Vec<String>> = range.rows()
+                    .map(|row| {
+                        row.iter().map(|cell| {
+                            match cell {
+                                DataType::Empty => String::new(),
+                                DataType::String(s) => s.clone(),
+                                DataType::Float(f) => f.to_string(),
+                                DataType::Int(i) => i.to_string(),
+                                DataType::Bool(b) => b.to_string(),
+                                _ => String::new(),
+                            }
+                        }).collect()
+                    })
+                    .collect();
+
+                if rows.is_empty() {
+                    return Err(anyhow::anyhow!("Excel file is empty"));
+                }
+
+                // Use first row as headers
+                let headers = &rows[0];
+                let data_rows = &rows[1..];
+
+                // Find column indices
+                let product_name_index = headers.iter().position(|h| {
+                    ["product_name", "name", "product name", "product", "اسم المنتج", "المنتج"]
+                        .contains(&h.to_lowercase().trim())
+                }).ok_or_else(|| anyhow::anyhow!("Missing required product name header"))?;
+
+                let company_index = headers.iter().position(|h| {
+                    ["company", "company_name", "شركة", "اسم الشركة"]
+                        .contains(&h.to_lowercase().trim())
+                });
+
+                let price_index = headers.iter().position(|h| {
+                    ["price", "dollar_price", "dinar_price", "سعر", "السعر"]
+                        .contains(&h.to_lowercase().trim())
+                });
+
+                let expiry_index = headers.iter().position(|h| {
+                    ["expiration", "expiry", "expiry_date", "expirstion", "تاريخ الانتهاء", "تاريخ الصلاحية"]
+                        .contains(&h.to_lowercase().trim())
+                });
+
+                // Process data rows
+                for (row_index, row) in data_rows.iter().enumerate() {
+                    total += 1;
+                    let actual_row_index = row_index + 2; // +1 for 0-based index, +1 for header
+
+                    // Extract product name
+                    let product_name = if product_name_index < row.len() {
+                        row[product_name_index].trim().to_string()
+                    } else {
+                        String::new()
+                    };
+
+                    if product_name.is_empty() || product_name.len() < 2 {
+                        continue;
+                    }
+
+                    // Extract company name
+                    let company_name = if let Some(idx) = company_index {
+                        if idx < row.len() {
+                            row[idx].trim().to_string()
+                        } else {
+                            String::new()
+                        }
+                    } else {
+                        String::new()
+                    };
+
+                    // Extract and parse price
+                    let mut price = 0.0;
+                    if let Some(idx) = price_index {
+                        if idx < row.len() {
+                            let price_str = row[idx].trim();
+                            if let Ok(parsed_price) = price_str.parse::<f64>() {
+                                price = parsed_price;
+                            } else {
+                                // Try to clean the price string
+                                let cleaned_price = price_str.replace(|c: char| !c.is_numeric() && c != '.' && c != '-', "");
+                                if let Ok(parsed_price) = cleaned_price.parse::<f64>() {
+                                    price = parsed_price;
+                                }
+                            }
+                        }
+                    }
+
+                    if price <= 0.0 {
+                        errors.push(format!("Row {}: Invalid or missing price value", actual_row_index));
+                        failed += 1;
+                        continue;
+                    }
+
+                    // Extract and parse expiry date
+                    let mut expiry_date = None;
+                    if let Some(idx) = expiry_index {
+                        if idx < row.len() {
+                            let date_str = row[idx].trim();
+                            if !date_str.is_empty() {
+                                // Try different date formats
+                                if let Ok(date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                                    expiry_date = Some(date);
+                                } else if let Ok(date) = NaiveDate::parse_from_str(date_str, "%d/%m/%Y") {
+                                    expiry_date = Some(date);
+                                } else if let Ok(date) = NaiveDate::parse_from_str(date_str, "%m/%d/%Y") {
+                                    expiry_date = Some(date);
+                                }
+                            }
+                        }
+                    }
+
+                    // Check if product already exists
+                    let existing_product = sqlx::query("SELECT id FROM products WHERE name = ?")
+                        .bind(&product_name)
+                        .fetch_optional(&db.pool)
+                        .await?;
+
+                    if existing_product.is_some() {
+                        errors.push(format!("Row {}: Product \"{}\" already exists", actual_row_index, product_name));
+                        failed += 1;
+                        continue;
+                    }
+
+                    // Generate unique SKU
+                    let sku = generate_unique_sku(&product_name, &db.pool).await?;
+
+                    // Insert product
+                    let result = sqlx::query(r#"
+                        INSERT INTO products (
+                            name, description, supported, sku, company_name,
+                            purchase_price, selling_price, wholesale_price,
+                            current_stock, min_stock, unit, units_per_box,
+                            is_dolar, expiry_date, stock_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    "#)
+                    .bind(&product_name)
+                    .bind("") // description
+                    .bind(true) // supported
+                    .bind(&sku)
+                    .bind(&company_name)
+                    .bind(price)
+                    .bind(price * 1.2) // selling_price = purchase_price * 1.2
+                    .bind(price * 1.1) // wholesale_price = purchase_price * 1.1
+                    .bind(0) // current_stock
+                    .bind(0) // min_stock
+                    .bind("قطعة") // unit
+                    .bind(1) // units_per_box
+                    .bind(false) // is_dolar
+                    .bind(expiry_date)
+                    .bind(default_stock_id)
+                    .execute(&db.pool)
+                    .await?;
+
+                    if result.rows_affected() > 0 {
+                        imported += 1;
+                    } else {
+                        failed += 1;
+                        errors.push(format!("Row {}: Failed to insert product \"{}\"", actual_row_index, product_name));
+                    }
+                }
+            } else {
+                return Err(anyhow::anyhow!("Could not read Excel worksheet"));
+            }
+        } else if filename.to_lowercase().ends_with(".csv") {
+            // Process CSV file
+            let cursor = Cursor::new(file_content);
+            let mut reader = csv::Reader::from_reader(cursor);
+
+            // Read headers
+            let headers = reader.headers()?.iter()
+                .map(|h| h.to_lowercase().trim().to_string())
+                .collect::<Vec<String>>();
+
+            // Find column indices
+            let product_name_index = headers.iter().position(|h| {
+                ["product_name", "name", "product name", "product", "اسم المنتج", "المنتج"]
+                    .contains(&h.as_str())
+            }).ok_or_else(|| anyhow::anyhow!("Missing required product name header"))?;
+
+            let company_index = headers.iter().position(|h| {
+                ["company", "company_name", "شركة", "اسم الشركة"]
+                    .contains(&h.as_str())
+            });
+
+            let price_index = headers.iter().position(|h| {
+                ["price", "dollar_price", "dinar_price", "سعر", "السعر"]
+                    .contains(&h.as_str())
+            });
+
+            let expiry_index = headers.iter().position(|h| {
+                ["expiration", "expiry", "expiry_date", "expirstion", "تاريخ الانتهاء", "تاريخ الصلاحية"]
+                    .contains(&h.as_str())
+            });
+
+            // Process data rows
+            for (row_index, result) in reader.records().enumerate() {
+                total += 1;
+                let actual_row_index = row_index + 2; // +1 for 0-based index, +1 for header
+
+                let row = result?;
+
+                // Extract product name
+                let product_name = if product_name_index < row.len() {
+                    row[product_name_index].trim().to_string()
+                } else {
+                    String::new()
+                };
+
+                if product_name.is_empty() || product_name.len() < 2 {
+                    continue;
+                }
+
+                // Extract company name
+                let company_name = if let Some(idx) = company_index {
+                    if idx < row.len() {
+                        row[idx].trim().to_string()
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                };
+
+                // Extract and parse price
+                let mut price = 0.0;
+                if let Some(idx) = price_index {
+                    if idx < row.len() {
+                        let price_str = row[idx].trim();
+                        if let Ok(parsed_price) = price_str.parse::<f64>() {
+                            price = parsed_price;
+                        } else {
+                            // Try to clean the price string
+                            let cleaned_price = price_str.replace(|c: char| !c.is_numeric() && c != '.' && c != '-', "");
+                            if let Ok(parsed_price) = cleaned_price.parse::<f64>() {
+                                price = parsed_price;
+                            }
+                        }
+                    }
+                }
+
+                if price <= 0.0 {
+                    errors.push(format!("Row {}: Invalid or missing price value", actual_row_index));
+                    failed += 1;
+                    continue;
+                }
+
+                // Extract and parse expiry date
+                let mut expiry_date = None;
+                if let Some(idx) = expiry_index {
+                    if idx < row.len() {
+                        let date_str = row[idx].trim();
+                        if !date_str.is_empty() {
+                            // Try different date formats
+                            if let Ok(date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                                expiry_date = Some(date);
+                            } else if let Ok(date) = NaiveDate::parse_from_str(date_str, "%d/%m/%Y") {
+                                expiry_date = Some(date);
+                            } else if let Ok(date) = NaiveDate::parse_from_str(date_str, "%m/%d/%Y") {
+                                expiry_date = Some(date);
+                            }
+                        }
+                    }
+                }
+
+                // Check if product already exists
+                let existing_product = sqlx::query("SELECT id FROM products WHERE name = ?")
+                    .bind(&product_name)
+                    .fetch_optional(&db.pool)
+                    .await?;
+
+                if existing_product.is_some() {
+                    errors.push(format!("Row {}: Product \"{}\" already exists", actual_row_index, product_name));
+                    failed += 1;
+                    continue;
+                }
+
+                // Generate unique SKU
+                let sku = generate_unique_sku(&product_name, &db.pool).await?;
+
+                // Insert product
+                let result = sqlx::query(r#"
+                    INSERT INTO products (
+                        name, description, supported, sku, company_name,
+                        purchase_price, selling_price, wholesale_price,
+                        current_stock, min_stock, unit, units_per_box,
+                        is_dolar, expiry_date, stock_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "#)
+                .bind(&product_name)
+                .bind("") // description
+                .bind(true) // supported
+                .bind(&sku)
+                .bind(&company_name)
+                .bind(price)
+                .bind(price * 1.2) // selling_price = purchase_price * 1.2
+                .bind(price * 1.1) // wholesale_price = purchase_price * 1.1
+                .bind(0) // current_stock
+                .bind(0) // min_stock
+                .bind("قطعة") // unit
+                .bind(1) // units_per_box
+                .bind(false) // is_dolar
+                .bind(expiry_date)
+                .bind(default_stock_id)
+                .execute(&db.pool)
+                .await?;
+
+                if result.rows_affected() > 0 {
+                    imported += 1;
+                } else {
+                    failed += 1;
+                    errors.push(format!("Row {}: Failed to insert product \"{}\"", actual_row_index, product_name));
+                }
+            }
+        } else {
+            return Err(anyhow::anyhow!("الملف غير مدعوم. يرجى تحميل ملف Excel (.xlsx/.xls) أو CSV."));
+        }
+
+        // Store error count before moving errors
+        let error_count = errors.len();
+        
+        // Limit errors to prevent large responses
+        let limited_errors = if errors.len() > 100 {
+            errors[..100].to_vec()
+        } else {
+            errors
+        };
+
+        Ok(ImportResult {
+            imported,
+            failed,
+            total,
+            errors: limited_errors,
+            error_count,
+        })
+    }
+
+    // Get expiring products within specified days
+    pub async fn get_expiring_products(&self, db: &Database, days: i64) -> Result<Vec<ProductWithDetails>> {
+        let query = r#"
+            SELECT 
+                p.*, c.name as category_name, s.name as stock_name
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN stocks s ON p.stock_id = s.id
+            WHERE p.expiry_date IS NOT NULL 
+            AND p.expiry_date <= DATE('now', '+' || ? || ' days')
+            AND p.expiry_date >= DATE('now')
+            AND p.is_active = 1
+            ORDER BY p.expiry_date ASC
+        "#;
+
+        let rows = sqlx::query(query)
+            .bind(days)
+            .fetch_all(&db.pool)
+            .await?;
+
+        let products = rows
+            .into_iter()
+            .map(|row| ProductWithDetails {
+                id: row.get("id"),
+                name: row.get("name"),
+                scientific_name: row.get("scientific_name"),
+                description: row.get("description"),
+                supported: row.get("supported"),
+                sku: row.get("sku"),
+                barcode: row.get("barcode"),
+                purchase_price: row.get("purchase_price"),
+                selling_price: row.get("selling_price"),
+                wholesale_price: row.get("wholesale_price"),
+                company_name: row.get("company_name"),
+                current_stock: row.get("current_stock"),
+                min_stock: row.get("min_stock"),
+                max_stock: row.get("max_stock"),
+                total_sold: row.get("total_sold"),
+                total_purchased: row.get("total_purchased"),
+                unit: row.get("unit"),
+                units_per_box: row.get("units_per_box"),
+                is_dolar: row.get("is_dolar"),
+                expiry_date: row.get("expiry_date"),
+                is_active: row.get("is_active"),
+                last_purchase_date: row.get("last_purchase_date"),
+                last_purchase_price: row.get("last_purchase_price"),
+                average_cost: row.get("average_cost"),
+                reorder_point: row.get("reorder_point"),
+                category_id: row.get("category_id"),
+                stock_id: row.get("stock_id"),
+                location_in_stock: row.get("location_in_stock"),
+                shelf_number: row.get("shelf_number"),
+                rack_number: row.get("rack_number"),
+                bin_number: row.get("bin_number"),
+                last_stock_check: row.get("last_stock_check"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+                supplier_name: None, // Removed supplier relationship
+                category_name: row.get("category_name"),
+                stock_name: row.get("stock_name"),
+            })
+            .collect();
+
+        Ok(products)
     }
 }

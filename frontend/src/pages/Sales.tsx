@@ -57,7 +57,7 @@ import type { SaleData } from '@/features/sales/salesService';
 import type { Customer } from '@/features/customers/customersService';
 import { PERMISSIONS } from '@/constants/permissions';
 import { selectHasPermission } from '@/features/auth/authSlice';
-import { CashBoxGuard } from '@/components/CashBoxGuard';
+// import { CashBoxGuard } from '@/components/CashBoxGuard'; // Removed - using money boxes only
 
 const Sales = () => {
   const navigate = useNavigate();
@@ -277,8 +277,7 @@ const Sales = () => {
   }
 
   return (
-    <CashBoxGuard operationType="إدارة المبيعات">
-      <div className="min-w-full mx-auto p-6 space-y-6">
+    <div className="min-w-full mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -736,7 +735,6 @@ const Sales = () => {
       </AlertDialog>
 
       </div>
-    </CashBoxGuard>
   );
 };
 

@@ -633,7 +633,7 @@ const CreatePurchaseInvoiceModal: React.FC<CreatePurchaseInvoiceModalProps> = ({
                         <SelectValue placeholder="اختر المخزن" />
                       </SelectTrigger>
                       <SelectContent>
-                        {stocks.map((stock) => (
+                        {stocks?.map((stock) => (
                           <SelectItem key={stock.id} value={stock.id.toString()}>
                             {stock.name} {stock.is_main_stock ? '(المخزن الرئيسي)' : ''}
                           </SelectItem>

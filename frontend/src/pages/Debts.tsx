@@ -55,7 +55,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CashBoxGuard } from '@/components/CashBoxGuard';
+// import { CashBoxGuard } from '@/components/CashBoxGuard'; // Removed - using money boxes only
 import { usePrintBill } from '@/hooks/usePrintBill';
 import BillReceipt from '@/components/BillReceipt';
 import DebtPaymentReceipt from '@/components/DebtPaymentReceipt';
@@ -841,8 +841,7 @@ const Debts = () => {
   if (debtsLoading && debts.length === 0 && !dataInitialized) {
     return (
       <DebtsWrapper>
-        <CashBoxGuard operationType="دفع دين">
-          <div className="container mx-auto px-4 py-8" dir="rtl">
+              <div className="container mx-auto px-4 py-8" dir="rtl">
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold flex items-center gap-2">الديون</h1>
             </div>
@@ -868,7 +867,6 @@ const Debts = () => {
               </CardContent>
             </Card>
           </div>
-        </CashBoxGuard>
       </DebtsWrapper>
     );
   }
@@ -883,8 +881,7 @@ const Debts = () => {
 
   return (
     <DebtsWrapper>
-      <CashBoxGuard operationType="دفع دين">
-        <div className="min-w-full mx-auto px-4 py-8" dir="rtl">
+      <div className="min-w-full mx-auto px-4 py-8" dir="rtl">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold flex items-center gap-2">
            
@@ -1496,8 +1493,7 @@ const Debts = () => {
             )}
           </DialogContent>
         </Dialog>
-        </div>
-      </CashBoxGuard>
+      </div>
     </DebtsWrapper>
   );
 };

@@ -135,7 +135,16 @@ class SupplierPaymentReceiptsService {
 
     try {
       const response = await api.get(`/supplier-payment-receipts?${params.toString()}`);
-      return response.data;
+      // Transform the backend response to match the expected frontend structure
+      return {
+        data: response.data.data.items || [],
+        pagination: {
+          page: response.data.data.page || 1,
+          limit: response.data.data.limit || 10,
+          total: response.data.data.total || 0,
+          totalPages: response.data.data.total_pages || 0
+        }
+      };
     } catch (error) {
       handleSupplierPaymentReceiptsApiError(error, 'getAll');
     }

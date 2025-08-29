@@ -60,9 +60,9 @@ impl SupplierService {
             SELECT 
                 s.*,
                 COALESCE(COUNT(DISTINCT p.id), 0) as products_count,
-                COALESCE(SUM(ps.supplier_price), 0) as total_supplier_value
+                COALESCE(CAST(SUM(ps.supplier_price) AS REAL), 0.0) as total_supplier_value
             FROM suppliers s
-            LEFT JOIN product_suppliers ps ON s.id = ps.supplier_id AND ps.is_active = 1
+            LEFT JOIN product_suppliers ps ON s.id = ps.supplier_id
             LEFT JOIN products p ON ps.product_id = p.id AND p.is_active = 1
             {}
             GROUP BY s.id
@@ -158,7 +158,7 @@ impl SupplierService {
                     )
                 ) as products
             FROM suppliers s
-            LEFT JOIN product_suppliers ps ON s.id = ps.supplier_id AND ps.is_active = 1
+            LEFT JOIN product_suppliers ps ON s.id = ps.supplier_id
             LEFT JOIN products p ON ps.product_id = p.id AND p.is_active = 1
             WHERE s.id = ?
             GROUP BY s.id

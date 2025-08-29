@@ -48,8 +48,8 @@ const Installments = lazy(() => import("./pages/Installments"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ActivationPage = lazy(() => import("./pages/ActivationPage"));
 const POS = lazy(() => import("./pages/POS"));
-const CashBox = lazy(() => import("./pages/CashBoxManagement"));
-const AdminCashBox = lazy(() => import("./pages/AdminCashBoxManagement"));
+// const CashBox = lazy(() => import("./pages/CashBoxManagement")); // Removed - using money boxes only
+const AdminMoneyBoxesManagement = lazy(() => import("./pages/AdminMoneyBoxesManagement"));
 const Bills = lazy(() => import("./pages/BillsPage"));
 const Stocks = lazy(() => import("./pages/Stocks"));
 const StockMovements = lazy(() => import("./pages/StockMovements"));
@@ -137,6 +137,15 @@ const AppRoutes = () => {
                 </Suspense>
               </RequirePermissionRoute>
             </EnabledRoute>
+          } />
+
+          {/* Admin Money Boxes Management Routes - Requires settings.manage permission */}
+          <Route path="/admin-cash-box" element={
+            <RequirePermissionRoute permission={PERMISSIONS.SETTINGS_MANAGE}>
+              <Suspense fallback={<RouteLoading />}>
+                <AdminMoneyBoxesManagement />
+              </Suspense>
+            </RequirePermissionRoute>
           } />
           
           {/* Purchases Routes - Requires purchases.view permission */}
@@ -308,27 +317,9 @@ const AppRoutes = () => {
             </EnabledRoute>
           } />
           
-          {/* Cash Box Routes - Requires cashbox.manage permission */}
-          <Route path="/cash-box" element={
-            <EnabledRoute path="/cash-box">
-              <RequirePermissionRoute permission={PERMISSIONS.CASHBOX_MANAGE}>
-                <Suspense fallback={<RouteLoading />}>
-                  <CashBox />
-                </Suspense>
-              </RequirePermissionRoute>
-            </EnabledRoute>
-          } />
+        
           
-          {/* Admin Cash Box Routes - Requires users.permissions permission */}
-          <Route path="/admin-cash-box" element={
-            <EnabledRoute path="/admin-cash-box">
-              <RequirePermissionRoute permission={PERMISSIONS.USERS_PERMISSIONS}>
-                <Suspense fallback={<RouteLoading />}>
-                  <AdminCashBox />
-                </Suspense>
-              </RequirePermissionRoute>
-            </EnabledRoute>
-          } />
+          
           
           {/* Dashboard Charts Routes - Requires dashboard.view permission */}
           <Route path="/dashboard-charts" element={

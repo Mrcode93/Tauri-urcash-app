@@ -237,7 +237,7 @@ const Representatives = () => {
       
       // Get delegate analytics from reports service
       const analytics = await reportsService.getDelegatesReport({ start: startDate, end: endDate });
-      const delegateAnalyticsData = analytics.find(d => d.id === delegate.id);
+      const delegateAnalyticsData = Array.isArray(analytics) ? analytics.find(d => d.id === delegate.id) : null;
       
       setDelegateAnalytics(delegateAnalyticsData || null);
     } catch (error) {

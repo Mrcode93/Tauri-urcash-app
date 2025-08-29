@@ -77,8 +77,10 @@ const Stocks: React.FC = () => {
     try {
       setLoading(true);
       const data = await stocksService.getAllStocks();
-      setStocks(data);
+      setStocks(Array.isArray(data) ? data : []);
     } catch (error: any) {
+      console.error('Error loading stocks:', error);
+      setStocks([]);
       toast.error(error.response?.data?.message || 'فشل في تحميل المخازن');
     } finally {
       setLoading(false);
@@ -476,7 +478,7 @@ const Stocks: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {stocks.map((stock) => (
+        {Array.isArray(stocks) && stocks.map((stock) => (
           <Card key={stock.id} className="bg-white border border-gray-200 hover:border-blue-500 hover:shadow-lg transition-all duration-300 overflow-hidden group">
             <div className="flex h-120">
               {/* Left Section - Header & Basic Info */}
@@ -555,7 +557,13 @@ const Stocks: React.FC = () => {
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span className="text-gray-600">السعة</span>
                     {stock.capacity > 0 ? (
-                      <span className="text-blue-600 font-bold">
+                      <span className={`font-bold ${
+                        (stock.current_capacity_used / stock.capacity) > 0.8 
+                          ? 'text-red-600' 
+                          : (stock.current_capacity_used / stock.capacity) > 0.6 
+                            ? 'text-yellow-600' 
+                            : 'text-green-600'
+                      }`}>
                         {Math.round((stock.current_capacity_used / stock.capacity) * 100)}%
                       </span>
                     ) : (
@@ -579,8 +587,8 @@ const Stocks: React.FC = () => {
                         ></div>
                       </div>
                       <div className="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>{stock.current_capacity_used?.toLocaleString('ar-IQ')}</span>
-                        <span>{stock.capacity?.toLocaleString('ar-IQ')}</span>
+                        <span>المستخدم: {stock.current_capacity_used?.toLocaleString('ar-IQ') || 0}</span>
+                        <span>الإجمالي: {stock.capacity?.toLocaleString('ar-IQ') || 0}</span>
                       </div>
                     </>
                   ) : (

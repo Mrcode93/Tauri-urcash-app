@@ -188,6 +188,7 @@ export const getAllProducts = async (params?: {
      // Debug log
     
     const { products, pagination } = response.data.data;
+    console.log('Pagination info:', response.data);
     const hasMore = pagination.hasNextPage;
     
     return {
@@ -212,6 +213,7 @@ export interface Category {
 export const getAllCategories = async (): Promise<Category[]> => {
   try {
     const response = await api.get<{ success: boolean; data: Category[] }>('/products/categories');
+    console.log('Categories:', response.data.data);
     return response.data.data;
   } catch (error) {
     console.error('Error in getAllCategories:', error);
@@ -256,7 +258,7 @@ export const getProductsByStock = async (stockId: number, params?: {
   category_id?: number;
 }): Promise<any> => {
   try {
-    const response = await api.get(`/inventory/by-stock/${stockId}`, { params });
+    const response = await api.get(`/stocks/${stockId}/products`, { params });
     return response.data;
   } catch (error) {
     handleApiError(error, 'جلب منتجات المخزن');

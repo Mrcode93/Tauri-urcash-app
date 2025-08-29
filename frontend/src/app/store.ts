@@ -13,7 +13,6 @@ import appReducer from '@/features/app/appSlice';
 import settingsReducer from '@/features/settings/settingsSlice';
 import posReducer from '../features/pos/posSlice';
 import installmentsReducer from '@/features/installments/installmentsSlice';
-import cashBoxReducer from '@/features/cashBox/cashBoxSlice';
 import moneyBoxesReducer from '@/features/moneyBoxes/moneyBoxesSlice';
 import devicesReducer from '@/features/devices/devicesSlice';
 import billsReducer from '@/features/bills/billsSlice';
@@ -36,7 +35,6 @@ export const store = configureStore({
     settings: settingsReducer,
     pos: posReducer,
     installments: installmentsReducer,
-    cashBox: cashBoxReducer,
     moneyBoxes: moneyBoxesReducer,
     devices: devicesReducer,
     bills: billsReducer,
